@@ -1,4 +1,7 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
+
+AS_CRYPTO_KEY = '123456789'
+AS_SIGNATURE_KEY = '723984572'
 
 AUDIENCE = 'tempSens1'
 

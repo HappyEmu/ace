@@ -1,4 +1,8 @@
 from flask import Flask, jsonify, request
+from access_token import Token
+
+CRYPTO_KEY = '123456789'
+SIGNATURE_KEY = '723984572'
 
 
 class Client:
@@ -63,7 +67,7 @@ def token():
         return jsonify({'error': 'unauthorized_client'}), 400
 
     # Issue Token
-    tkn = {'token': 'token'}
+    tkn = Token.make_token(SIGNATURE_KEY, CRYPTO_KEY)
 
     return jsonify(tkn)
 
