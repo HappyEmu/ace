@@ -10,6 +10,7 @@ app = Flask(__name__)
 
 @app.route("/temperature")
 def temperature():
+    request.get_json()
     return jsonify({'temperature': '32C'})
 
 

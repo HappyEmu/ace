@@ -1,5 +1,6 @@
-from flask import Flask, jsonify, request
 from access_token import Token
+from flask import Flask, jsonify, request
+from jwcrypto import jwk
 
 CRYPTO_KEY = '123456789'
 SIGNATURE_KEY = '723984572'
@@ -21,7 +22,7 @@ def verify_token_request():
     if request.get_json() is None:
         return False
 
-    return all(key in expected_keys for key in request.get_json())
+    return all(key in request.get_json() for key in expected_keys)
 
 
 def verify_client(client_id, client_secret):
@@ -59,15 +60,21 @@ def token():
     if not verify_token_request():
         return jsonify({'error': 'invalid_request'}), 400
 
-    client_id = request.get_json()['client_id']
-    client_secret = request.get_json()['client_secret']
+    params = request.get_json()
+
+    client_id = params['client_id']
+    client_secret = params['client_secret']
 
     # Check if client is registered
     if not verify_client(client_id, client_secret):
         return jsonify({'error': 'unauthorized_client'}), 400
 
+    # Extract Clients Public key
+    client_pk = jwk.JWK()
+    client_pk.import_key(**params['cnf']['jwk'])
+
     # Issue Token
-    tkn = Token.make_token(SIGNATURE_KEY, CRYPTO_KEY)
+    tkn = Token.make_token(client_pk, SIGNATURE_KEY, CRYPTO_KEY)
 
     return jsonify(tkn)
 
