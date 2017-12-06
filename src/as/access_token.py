@@ -21,4 +21,8 @@ class Token(object):
         # PoP Token
         return {'access_token': token.decode('utf-8'),
                 'token_type': 'pop',
-                'csp': 'DTLS', }
+                'csp': 'coap_dtls', }
+
+        # TODO: return Public Key of RS in 'rs_cnf'
+
+        # Note: no 'cnf' param for asymmetric PoP keys

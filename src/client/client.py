@@ -12,11 +12,30 @@ AS_URL = 'http://localhost:8080'
 RS_URL = 'http://localhost:8081'
 
 
-def main():
-    # Generate Asymmetric Session Key
+def generate_session_key():
+    """
+    Generates an asymmetic session key
+    :return: (private_key, public_key) pair
+    """
     private_key = jwk.JWK.generate(kty='EC', size=160)
     public_key = jwk.JWK()
     public_key.import_key(**json_decode(private_key.export_public()))
+
+    return private_key, public_key
+
+
+def generate_signed_nonce(private_key):
+    nonce = binascii.hexlify(os.urandom(16)).decode('utf-8')
+
+    jws_nonce = jws.JWS(nonce)
+    jws_nonce.add_signature(private_key, alg='ES256')
+
+    return json_decode(jws_nonce.serialize())
+
+
+def main():
+    # Generate Asymmetric Session Key
+    private_key, public_key = generate_session_key()
 
     # Request access token from AS
     token_request = {'grant_type': 'client_credentials',
@@ -26,7 +45,12 @@ def main():
                      'aud': 'tempSensor0',
                      'cnf': {'jwk': json_decode(public_key.export())}}
 
+    print(f"\n========== CLIENT TO AS ==========")
+    print(f"\t ===> Sending {token_request} to /token at AS")
+
     response = requests.post(AS_URL + '/token', json=token_request)
+
+    print(f"\t <=== Received response {response.json()}")
 
     # Check Access Token
     if response.status_code == 200:
@@ -35,19 +59,23 @@ def main():
         token = None
 
     if not token:
-        print("Did not get token :( Exiting...")
+        print(f"\t ERROR: {response.json()}")
         exit(1)
 
+    # TODO: Authenticate RS (using RS public key returned in 'rs_cnf' from AS)
+
     # Make Resource request, sign nonce
-    nonce = jws.JWS(binascii.hexlify(os.urandom(16)).decode('utf-8'))
-    nonce.add_signature(private_key, alg='ES256')
+    signed_nonce = generate_signed_nonce(private_key)
 
     resource_request = {'access_token': token,
-                        'nonce': json_decode(nonce.serialize())}
+                        'nonce': signed_nonce}
+
+    print(f"\n========== CLIENT TO RS ==========")
+    print(f"\t ===> Sending {resource_request} to /authz-info at RS")
 
     response = requests.post(RS_URL + '/authz-info', json=resource_request)
 
-    print(response.text)
+    print(f"\t <=== Received {response.text}")
 
 
 if __name__ == '__main__':

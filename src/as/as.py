@@ -1,15 +1,10 @@
 from access_token import Token
+from client_registry import ClientRegistry
 from flask import Flask, jsonify, request
 from jwcrypto import jwk
 
 CRYPTO_KEY = '123456789'
 SIGNATURE_KEY = '723984572'
-
-
-class Client:
-    def __init__(self, client_id, client_secret):
-        self.client_id = client_id
-        self.client_secret = client_secret
 
 
 # Verifies that
@@ -26,19 +21,13 @@ def verify_token_request():
 
 
 def verify_client(client_id, client_secret):
-    is_registered = client_id in [c.client_id for c in approved_clients]
-
-    if is_registered:
-        registered_secret = [c.client_secret for c in approved_clients if c.client_id == client_id][0]
-
-        if registered_secret == client_secret:
-            return True
-
-    return False
+    return client_registry.check_secret(client_id, client_secret)
 
 
 app = Flask(__name__)
-approved_clients = [Client("123456789", "verysecret")]
+
+client_registry = ClientRegistry()
+client_registry.register_client(client_id="123456789", client_secret="verysecret")
 
 
 # Clients endpoint
@@ -47,7 +36,7 @@ approved_clients = [Client("123456789", "verysecret")]
 # ONLY FOR DEBUGGING PURPOSES
 @app.route("/clients")
 def clients():
-    return jsonify({'approved_clients': [c.client_id for c in approved_clients]})
+    return jsonify({'approved_clients': [c.client_id for c in client_registry.registered_clients]})
 
 
 # Token endpoint
