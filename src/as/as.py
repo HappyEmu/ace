@@ -62,8 +62,11 @@ def token():
     client_pk = jwk.JWK()
     client_pk.import_key(**params['cnf']['jwk'])
 
+    # Extract client claims scope and audience
+    client_claims = {k: params[k] for k in ('scope', 'aud')}
+
     # Issue Token
-    tkn = Token.make_token(client_pk, SIGNATURE_KEY, CRYPTO_KEY)
+    tkn = Token.make_token(client_claims, client_pk, SIGNATURE_KEY, CRYPTO_KEY)
 
     return jsonify(tkn)
 

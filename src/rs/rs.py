@@ -29,7 +29,7 @@ class ResourceServer(object):
 
         cti = params['cti']
 
-        token = self.token_cache[cti]
+        token = self.token_cache.get_token(cti)
 
         # TODO (?) Verify token
 
@@ -52,7 +52,7 @@ class ResourceServer(object):
                                  audience=self.audience)
 
         except (jwt.DecodeError, jwt.InvalidAudienceError) as err:
-            return str(err), 401
+            return jsonify({'error': str(err)}), 401
 
         # Extract PoP Key
         pop_key = jwk.JWK()

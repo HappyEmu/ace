@@ -13,3 +13,6 @@ class TokenCache(object):
         self.tokens[cti] = token
 
         return cti
+
+    def get_token(self, cti):
+        return self.tokens[cti]

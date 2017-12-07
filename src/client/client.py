@@ -41,7 +41,7 @@ def main():
     token_request = {'grant_type': 'client_credentials',
                      'client_id': CLIENT_ID,
                      'client_secret': CLIENT_SECRET,
-                     'scope': 'read',
+                     'scope': 'read_temperature',
                      'aud': 'tempSensor0',
                      'cnf': {'jwk': json_decode(public_key.export())}}
 
@@ -67,15 +67,27 @@ def main():
     # Make Resource request, sign nonce
     signed_nonce = generate_signed_nonce(private_key)
 
-    resource_request = {'access_token': token,
-                        'nonce': signed_nonce}
+    upload_token_request = {'access_token': token,
+                            'nonce': signed_nonce}
 
     print(f"\n========== CLIENT TO RS ==========")
+    print(f"\t ===> Sending {upload_token_request} to /authz-info at RS")
+
+    response = requests.post(RS_URL + '/authz-info', json=upload_token_request)
+
+    print(f"\t <=== Received {response.json()}")
+
+    if response.status_code != 201:
+        exit(1)
+
+    # Get protected resource
+    resource_request = {'cti': response.json()['cti']}
+
     print(f"\t ===> Sending {resource_request} to /authz-info at RS")
 
-    response = requests.post(RS_URL + '/authz-info', json=resource_request)
+    response = requests.get(RS_URL + '/temperature', json=resource_request)
 
-    print(f"\t <=== Received {response.text}")
+    print(f"\t <=== Received {response.json()}")
 
 
 if __name__ == '__main__':
