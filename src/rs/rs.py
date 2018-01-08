@@ -6,7 +6,7 @@ from aiohttp import web
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_encode
 
-from lib.token_cache import TokenCache
+from token_cache import TokenCache
 
 AS_CRYPTO_KEY = '123456789'
 AS_SIGNATURE_KEY = '723984572'

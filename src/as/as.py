@@ -3,16 +3,19 @@ from client_registry import ClientRegistry
 from aiohttp import web
 from jwcrypto import jwk
 
+from cbor2 import dumps, loads
+from lib.cbor.constants import TokenRequest
+
 CRYPTO_KEY = '123456789'
 SIGNATURE_KEY = '723984572'
 
 
 # Verifies that
 def verify_token_request(request_data):
-    expected_keys = ['grant_type',
-                     'client_id',
-                     'client_secret',
-                     'aud']
+    expected_keys = [TokenRequest.GRANT_TYPE,
+                     TokenRequest.CLIENT_ID,
+                     TokenRequest.CLIENT_SECRET,
+                     TokenRequest.AUD]
 
     if request_data is None:
         return False
@@ -41,14 +44,14 @@ async def clients(request):
 # Validates the incoming requests and grants an access token if valid. Must be POST [ACE 5.6.1]
 # Returns error codes as stated in [ACE 5.6.3]
 async def token(request):
-    params = await request.json()
+    params = loads(await request.content.read())
 
     # Verify basic request
     if not verify_token_request(params):
         return web.json_response(data={'error': 'invalid_request'}, status=400)
 
-    client_id = params['client_id']
-    client_secret = params['client_secret']
+    client_id = params[TokenRequest.CLIENT_ID]
+    client_secret = params[TokenRequest.CLIENT_SECRET]
 
     # Check if client is registered
     if not verify_client(client_id, client_secret):
@@ -56,10 +59,10 @@ async def token(request):
 
     # Extract Clients Public key
     client_pk = jwk.JWK()
-    client_pk.import_key(**params['cnf']['jwk'])
+    client_pk.import_key(**params[TokenRequest.CNF]['jwk'])
 
     # Extract client claims scope and audience
-    client_claims = {k: params[k] for k in ('scope', 'aud')}
+    client_claims = {k: params[k] for k in (TokenRequest.SCOPE, TokenRequest.AUD)}
 
     # Issue Token
     tkn = Token.make_token(client_claims, client_pk, SIGNATURE_KEY, CRYPTO_KEY)

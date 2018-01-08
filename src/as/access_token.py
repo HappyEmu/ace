@@ -1,6 +1,8 @@
 import jwt
 from jwcrypto.common import json_decode
 
+from lib.cbor.constants import Cwt, TokenRequest, GrantTypes
+
 
 class Token(object):
 
@@ -8,18 +10,18 @@ class Token(object):
     def make_token(client_claims, session_key, signature_key, enc_key):
 
         # Bind session key to token
-        payload = {
-            'iss': 'test',
-            'cnf': {
+        claims = {
+            Cwt.ISS: 'test',
+            TokenRequest.CNF: {
                 'jwk': json_decode(session_key.export())
             }
         }
 
         # Add client claims (aud and scope)
-        payload.update(client_claims)
+        claims.update(client_claims)
 
         # Create signed JWT
-        token = jwt.encode(payload, signature_key, algorithm='HS256')
+        token = jwt.encode(claims, signature_key, algorithm='HS256')
 
         # PoP Token
         return {'access_token': token.decode('utf-8'),

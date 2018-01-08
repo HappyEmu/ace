@@ -4,6 +4,8 @@ import os
 import requests
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
+from cbor2 import dumps, loads
+from lib.cbor.constants import Cwt, TokenRequest, GrantTypes
 
 CLIENT_ID = '123456789'
 CLIENT_SECRET = 'verysecret'
@@ -14,7 +16,7 @@ RS_URL = 'http://localhost:8081'
 
 def generate_session_key():
     """
-    Generates an asymmetic session key
+    Generates an asymmetric session key
     :return: (private_key, public_key) pair
     """
     private_key = jwk.JWK.generate(kty='EC', size=160)
@@ -38,17 +40,19 @@ def main():
     private_key, public_key = generate_session_key()
 
     # Request access token from AS
-    token_request = {'grant_type': 'client_credentials',
-                     'client_id': CLIENT_ID,
-                     'client_secret': CLIENT_SECRET,
-                     'scope': 'read_temperature',
-                     'aud': 'tempSensor0',
-                     'cnf': {'jwk': json_decode(public_key.export())}}
+    token_request = { TokenRequest.GRANT_TYPE: GrantTypes.CLIENT_CREDENTIALS,
+                      TokenRequest.CLIENT_ID: CLIENT_ID,
+                      TokenRequest.CLIENT_SECRET: CLIENT_SECRET,
+                      TokenRequest.SCOPE: 'read_temperature',
+                      TokenRequest.AUD: 'tempSensor0',
+                      TokenRequest.CNF: {'jwk': json_decode(public_key.export())} }
+
+    cbor_tkn_request = dumps(token_request)
 
     print(f"\n========== CLIENT TO AS ==========")
     print(f"\t ===> Sending {token_request} to /token at AS")
 
-    response = requests.post(AS_URL + '/token', json=token_request)
+    response = requests.post(AS_URL + '/token', data=cbor_tkn_request)
 
     print(f"\t <=== Received response {response.json()}")
 
