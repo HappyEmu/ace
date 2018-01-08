@@ -2,7 +2,7 @@ import random
 from threading import Thread
 
 import jwt
-from flask import Flask, jsonify, request
+from aiohttp import web
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_encode
 
@@ -22,10 +22,10 @@ class ResourceServer(object):
         self.token_cache = TokenCache()
 
     def start(self):
-        self.app.run(port=self.port)
+        web.run_app(self.app, port=self.port)
 
-    def get_temperature(self):
-        params = request.get_json()
+    async def get_temperature(self, request):
+        params = await request.json()
 
         cti = params['cti']
 
@@ -33,15 +33,15 @@ class ResourceServer(object):
 
         # Verify scope
         if token['scope'] != 'read_temperature':
-            return jsonify({'error': 'not authorized'}), 401
+            return web.json_response(data={'error': 'not authorized'}, status=401)
 
-        return jsonify({'temperature': f"{self.temperature}C"}), 205
+        return web.json_response(data={'temperature': f"{self.temperature}C"}, status=205)
 
-    def get_audience(self):
+    async def get_audience(self, request):
         return self.audience
 
-    def authz_info(self):
-        params = request.get_json()
+    async def authz_info(self, request):
+        params = await request.json()
 
         # Extract access token
         access_token = params['access_token']
@@ -54,7 +54,7 @@ class ResourceServer(object):
                                  audience=self.audience)
 
         except (jwt.DecodeError, jwt.InvalidAudienceError) as err:
-            return jsonify({'error': str(err)}), 401
+            return web.json_response(data={'error': str(err)}, status=401)
 
         # Extract PoP Key
         pop_key = jwk.JWK()
@@ -73,14 +73,14 @@ class ResourceServer(object):
 
         cti = self.token_cache.add_token(decoded)
 
-        return jsonify({'cti': cti}), 201
+        return web.json_response(data={'cti': cti}, status=201)
 
     def __create_app__(self):
-        app = Flask(__name__)
+        app = web.Application()
 
-        app.add_url_rule('/temperature', 'temperature', self.get_temperature)
-        app.add_url_rule('/audience', 'audience', self.get_audience)
-        app.add_url_rule('/authz-info', 'authz-info', self.authz_info, methods=['POST'])
+        app.router.add_get('/temperature', self.get_temperature)
+        app.router.add_get('/audience', self.get_audience)
+        app.router.add_post('/authz-info', self.authz_info)
 
         return app
 
@@ -92,12 +92,13 @@ def create_server(num):
 
 
 if __name__ == '__main__':
-    threads = []
-
-    for i in range(0, 1):
-        thread = Thread(target=create_server, args=(i,))
-        threads.append(thread)
-        thread.start()
-
-    for thread in threads:
-        thread.join()
+    create_server(0)
+    # threads = []
+    #
+    # for i in range(0, 1):
+    #     thread = Thread(target=create_server, args=(i,))
+    #     threads.append(thread)
+    #     thread.start()
+    #
+    # for thread in threads:
+    #     thread.join()
