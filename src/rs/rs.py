@@ -31,7 +31,9 @@ class ResourceServer(object):
 
         token = self.token_cache.get_token(cti)
 
-        # TODO (?) Verify token
+        # Verify scope
+        if token['scope'] != 'read_temperature':
+            return jsonify({'error': 'not authorized'}), 401
 
         return jsonify({'temperature': f"{self.temperature}C"}), 205
 
