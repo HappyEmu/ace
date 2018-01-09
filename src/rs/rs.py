@@ -5,6 +5,7 @@ import jwt
 from aiohttp import web
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_encode
+from lib.cbor.constants import Keys as CborKeys, GrantTypes
 
 from token_cache import TokenCache
 
@@ -32,7 +33,7 @@ class ResourceServer(object):
         token = self.token_cache.get_token(cti)
 
         # Verify scope
-        if token['scope'] != 'read_temperature':
+        if token[str(CborKeys.SCOPE)] != 'read_temperature':
             return web.json_response(data={'error': 'not authorized'}, status=401)
 
         return web.json_response(data={'temperature': f"{self.temperature}C"}, status=205)
@@ -46,19 +47,22 @@ class ResourceServer(object):
         # Extract access token
         access_token = params['access_token']
 
+        # TODO: verify audience!
+
         # Verify JWT, verify token signature and audience
         try:
             decoded = jwt.decode(access_token,
                                  AS_SIGNATURE_KEY,
                                  algorithms=['HS256'],
-                                 audience=self.audience)
+                                 audience=None)
 
-        except (jwt.DecodeError, jwt.InvalidAudienceError) as err:
+        except (jwt.DecodeError, jwt.InvalidAudienceError, jwt.MissingRequiredClaimError) as err:
             return web.json_response(data={'error': str(err)}, status=401)
 
         # Extract PoP Key
         pop_key = jwk.JWK()
-        pop_key.import_key(**decoded['cnf']['jwk'])
+        pop_key.import_key(**decoded[str(CborKeys.CNF)]['jwk'])
+        # str(...) temporarily necessary because JSON does not allow integer keys
 
         # Verify nonce (not necessary)
         nonce = jws.JWS()

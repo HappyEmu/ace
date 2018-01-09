@@ -6,77 +6,81 @@ from jwcrypto import jwk
 from cbor2 import dumps, loads
 from lib.cbor.constants import Keys as CborKeys
 
-CRYPTO_KEY = '123456789'
-SIGNATURE_KEY = '723984572'
 
+class AuthorizationServer:
 
-# Verifies that
-def verify_token_request(request_data):
-    expected_keys = [CborKeys.GRANT_TYPE,
-                     CborKeys.CLIENT_ID,
-                     CborKeys.CLIENT_SECRET,
-                     CborKeys.AUD]
+    def __init__(self, crypto_key, signature_key):
+        self.crypto_key = crypto_key
+        self.signature_key = signature_key
+        self.client_registry = ClientRegistry()
+        self.client_registry.register_client(client_id="123456789", client_secret="verysecret")
 
-    if request_data is None:
-        return False
+    def start(self):
+        app = web.Application()
 
-    return all(key in request_data for key in expected_keys)
+        app.router.add_get('/clients', self.clients)
+        app.router.add_post('/token', self.token)
 
+        web.run_app(app, port=8080)
 
-def verify_client(client_id, client_secret):
-    return client_registry.check_secret(client_id, client_secret)
+    def verify_client(self, client_id, client_secret):
+        return self.client_registry.check_secret(client_id, client_secret)
 
+    # Clients endpoint
+    #
+    # Returns a list of all approved client IDs.
+    # ONLY FOR DEBUGGING PURPOSES
+    async def clients(self, request):
+        return web.json_response({'approved_clients': [c.client_id for c in self.client_registry.registered_clients]})
 
-client_registry = ClientRegistry()
-client_registry.register_client(client_id="123456789", client_secret="verysecret")
+    # Token endpoint
+    #
+    # Validates the incoming requests and grants an access token if valid. Must be POST [ACE 5.6.1]
+    # Returns error codes as stated in [ACE 5.6.3]
+    async def token(self, request):
+        params = loads(await request.content.read())
 
+        # Verify basic request
+        if not self._verify_token_request(params):
+            return web.json_response(data={'error': 'invalid_request'}, status=400)
 
-# Clients endpoint
-#
-# Returns a list of all approved client IDs.
-# ONLY FOR DEBUGGING PURPOSES
-async def clients(request):
-    return web.json_response({'approved_clients': [c.client_id for c in client_registry.registered_clients]})
+        client_id = params[CborKeys.CLIENT_ID]
+        client_secret = params[CborKeys.CLIENT_SECRET]
 
+        # Check if client is registered
+        if not self.verify_client(client_id, client_secret):
+            return web.json_response(data={'error': 'unauthorized_client'}, status=400)
 
-# Token endpoint
-#
-# Validates the incoming requests and grants an access token if valid. Must be POST [ACE 5.6.1]
-# Returns error codes as stated in [ACE 5.6.3]
-async def token(request):
-    params = loads(await request.content.read())
+        # Extract Clients Public key
+        client_pk = jwk.JWK()
+        client_pk.import_key(**params[CborKeys.CNF]['jwk'])
 
-    # Verify basic request
-    if not verify_token_request(params):
-        return web.json_response(data={'error': 'invalid_request'}, status=400)
+        # Extract client claims scope and audience
+        client_claims = {k: params[k] for k in (CborKeys.SCOPE, CborKeys.AUD)}
 
-    client_id = params[CborKeys.CLIENT_ID]
-    client_secret = params[CborKeys.CLIENT_SECRET]
+        # Issue Token
+        tkn = Token.make_token(client_claims, client_pk, self.signature_key, self.crypto_key)
 
-    # Check if client is registered
-    if not verify_client(client_id, client_secret):
-        return web.json_response(data={'error': 'unauthorized_client'}, status=400)
+        return web.json_response(tkn)
 
-    # Extract Clients Public key
-    client_pk = jwk.JWK()
-    client_pk.import_key(**params[CborKeys.CNF]['jwk'])
+        # Verifies that
 
-    # Extract client claims scope and audience
-    client_claims = {k: params[k] for k in (CborKeys.SCOPE, CborKeys.AUD)}
+    def _verify_token_request(self, request_data):
+        expected_keys = [CborKeys.GRANT_TYPE,
+                         CborKeys.CLIENT_ID,
+                         CborKeys.CLIENT_SECRET,
+                         CborKeys.AUD]
 
-    # Issue Token
-    tkn = Token.make_token(client_claims, client_pk, SIGNATURE_KEY, CRYPTO_KEY)
+        if request_data is None:
+            return False
 
-    return web.json_response(tkn)
+        return all(key in request_data for key in expected_keys)
 
 
 def main():
-    app = web.Application()
-
-    app.router.add_get('/clients', clients)
-    app.router.add_post('/token', token)
-
-    web.run_app(app, port=8080)
+    server = AuthorizationServer(crypto_key='123456789',
+                                 signature_key='723984572')
+    server.start()
 
 
 if __name__ == "__main__":
