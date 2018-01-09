@@ -1,17 +1,12 @@
-class ASInformation:
-    AS    = 0
-    NONCE = 5
-
-
-class GrantTypes:
-    PASSWORD           = 0
-    AUTHORIZATION_CODE = 1
-    CLIENT_CREDENTIALS = 2
-    REFRESH_TOKEN      = 3
-
-
-class TokenRequest:
+class Keys:
+    AS                = 0
+    ISS               = 1
+    SUB               = 2
     AUD               = 3
+    EXP               = 4
+    NBF               = 5
+    IAT               = 6
+    CTI               = 7
     CLIENT_ID         = 8
     CLIENT_SECRET     = 9
     RESPONSE_TYPE     = 10
@@ -31,38 +26,18 @@ class TokenRequest:
     REFRESH_TOKEN     = 24
     CNF               = 25
     PROFILE           = 26
+    TOKEN             = 27
+    TOKEN_TYPE_HINT   = 28
+    ACTIVE            = 29
+    CLIENT_TOKEN      = 30
     RS_CNF            = 31
 
 
-class Cwt:
-    ISS = 1
-    SUB = 2
-    AUD = 3
-    EXP = 4
-    NBF = 5
-    IAT = 6
-    CTI = 7
-
-
-class TokenIntrospection:
-    ISS             = 1
-    SUB             = 2
-    AUD             = 3
-    EXP             = 4
-    NBF             = 5
-    IAT             = 6
-    CTI             = 7
-    CLIENT_ID       = 8
-    SCOPE           = 12
-    TOKEN_TYPE      = 20
-    USERNAME        = 22
-    CNF             = 25
-    PROFILE         = 26
-    TOKEN           = 27
-    TOKEN_TYPE_HINT = 28
-    ACTIVE          = 29
-    CLIENT_TOKEN    = 30
-    RS_CNF          = 31
+class GrantTypes:
+    PASSWORD           = 0
+    AUTHORIZATION_CODE = 1
+    CLIENT_CREDENTIALS = 2
+    REFRESH_TOKEN      = 3
 
 
 class ErrorResponse:

@@ -5,7 +5,7 @@ import requests
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
-from lib.cbor.constants import Cwt, TokenRequest, GrantTypes
+from lib.cbor.constants import Keys as CborKeys, GrantTypes
 
 CLIENT_ID = '123456789'
 CLIENT_SECRET = 'verysecret'
@@ -40,12 +40,12 @@ def main():
     private_key, public_key = generate_session_key()
 
     # Request access token from AS
-    token_request = { TokenRequest.GRANT_TYPE: GrantTypes.CLIENT_CREDENTIALS,
-                      TokenRequest.CLIENT_ID: CLIENT_ID,
-                      TokenRequest.CLIENT_SECRET: CLIENT_SECRET,
-                      TokenRequest.SCOPE: 'read_temperature',
-                      TokenRequest.AUD: 'tempSensor0',
-                      TokenRequest.CNF: {'jwk': json_decode(public_key.export())} }
+    token_request = { CborKeys.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
+                      CborKeys.CLIENT_ID:     CLIENT_ID,
+                      CborKeys.CLIENT_SECRET: CLIENT_SECRET,
+                      CborKeys.SCOPE:         'read_temperature',
+                      CborKeys.AUD:           'tempSensor0',
+                      CborKeys.CNF:           { 'jwk': json_decode(public_key.export())} }
 
     cbor_tkn_request = dumps(token_request)
 

@@ -4,7 +4,7 @@ from aiohttp import web
 from jwcrypto import jwk
 
 from cbor2 import dumps, loads
-from lib.cbor.constants import TokenRequest
+from lib.cbor.constants import Keys as CborKeys
 
 CRYPTO_KEY = '123456789'
 SIGNATURE_KEY = '723984572'
@@ -12,10 +12,10 @@ SIGNATURE_KEY = '723984572'
 
 # Verifies that
 def verify_token_request(request_data):
-    expected_keys = [TokenRequest.GRANT_TYPE,
-                     TokenRequest.CLIENT_ID,
-                     TokenRequest.CLIENT_SECRET,
-                     TokenRequest.AUD]
+    expected_keys = [CborKeys.GRANT_TYPE,
+                     CborKeys.CLIENT_ID,
+                     CborKeys.CLIENT_SECRET,
+                     CborKeys.AUD]
 
     if request_data is None:
         return False
@@ -50,8 +50,8 @@ async def token(request):
     if not verify_token_request(params):
         return web.json_response(data={'error': 'invalid_request'}, status=400)
 
-    client_id = params[TokenRequest.CLIENT_ID]
-    client_secret = params[TokenRequest.CLIENT_SECRET]
+    client_id = params[CborKeys.CLIENT_ID]
+    client_secret = params[CborKeys.CLIENT_SECRET]
 
     # Check if client is registered
     if not verify_client(client_id, client_secret):
@@ -59,10 +59,10 @@ async def token(request):
 
     # Extract Clients Public key
     client_pk = jwk.JWK()
-    client_pk.import_key(**params[TokenRequest.CNF]['jwk'])
+    client_pk.import_key(**params[CborKeys.CNF]['jwk'])
 
     # Extract client claims scope and audience
-    client_claims = {k: params[k] for k in (TokenRequest.SCOPE, TokenRequest.AUD)}
+    client_claims = {k: params[k] for k in (CborKeys.SCOPE, CborKeys.AUD)}
 
     # Issue Token
     tkn = Token.make_token(client_claims, client_pk, SIGNATURE_KEY, CRYPTO_KEY)
