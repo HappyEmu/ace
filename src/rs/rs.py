@@ -4,7 +4,6 @@ from threading import Thread
 import jwt
 from aiohttp import web
 from jwcrypto import jwk, jws
-from jwcrypto.common import json_encode
 from lib.cbor.constants import Keys as CborKeys, GrantTypes
 
 from token_cache import TokenCache

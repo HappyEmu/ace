@@ -1,7 +1,9 @@
 import binascii
 import os
+import asyncio
 
 import requests
+from aiocoap import *
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
@@ -35,24 +37,26 @@ def generate_signed_nonce(private_key):
     return jws_nonce.serialize(compact=True)
 
 
-def main():
+async def main():
     # Generate Asymmetric Session Key
     private_key, public_key = generate_session_key()
 
-    # Request access token from AS
-    token_request = { CborKeys.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
-                      CborKeys.CLIENT_ID:     CLIENT_ID,
-                      CborKeys.CLIENT_SECRET: CLIENT_SECRET,
-                      CborKeys.SCOPE:         'read_temperature',
-                      CborKeys.AUD:           'tempSensor0',
-                      CborKeys.CNF:           { 'jwk': json_decode(public_key.export())} }
+    protocol = await Context.create_client_context()
 
-    cbor_tkn_request = dumps(token_request)
+    # Request access token from AS
+    cbor_token_request = { CborKeys.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
+                           CborKeys.CLIENT_ID:     CLIENT_ID,
+                           CborKeys.CLIENT_SECRET: CLIENT_SECRET,
+                           CborKeys.SCOPE:         'read_temperature',
+                           CborKeys.AUD:           'tempSensor0',
+                           CborKeys.CNF:           { 'jwk': json_decode(public_key.export())} }
 
     print(f"\n========== CLIENT TO AS ==========")
-    print(f"\t ===> Sending {token_request} to /token at AS")
+    print(f"\t ===> Sending {cbor_token_request} to /token at AS")
 
-    response = requests.post(AS_URL + '/token', data=cbor_tkn_request)
+    request = Message(code=Code.GET, uri=f"coap://{AS_URL}/token", payload=dumps(cbor_token_request))
+
+    response = await protocol.request(request).response
 
     print(f"\t <=== Received response {response.json()}")
 
@@ -95,4 +99,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.get_event_loop().run_until_complete(main())
