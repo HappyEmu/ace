@@ -12,14 +12,14 @@ logging.basicConfig(level=logging.INFO)
 
 class Client:
 
-    def __init__(self, id, secret):
-        self.id = id
-        self.secret = secret
+    def __init__(self, client_id, client_secret):
+        self.client_id = client_id
+        self.client_secret = client_secret
         self.protocol = None
 
     @classmethod
-    async def create(cls, id, secret):
-        self = Client(id, secret)
+    async def create(cls, client_id, client_secret):
+        self = Client(client_id, client_secret)
         self.protocol = await Context.create_client_context()
         return self
 
@@ -27,8 +27,8 @@ class Client:
         private_key, public_key = self._generate_session_key()
 
         request_params = {CborKeys.GRANT_TYPE: GrantTypes.CLIENT_CREDENTIALS,
-                          CborKeys.CLIENT_ID: self.id,
-                          CborKeys.CLIENT_SECRET: self.secret,
+                          CborKeys.CLIENT_ID: self.client_id,
+                          CborKeys.CLIENT_SECRET: self.client_secret,
                           CborKeys.SCOPE: 'read_temperature',
                           CborKeys.AUD: 'tempSensor0',
                           CborKeys.CNF: {'jwk': json_decode(public_key.export())}}
@@ -58,8 +58,8 @@ class Client:
 
 
 async def main():
-    client = await Client.create(id='123456789',
-                                 secret='verysecret')
+    client = await Client.create(client_id='123456789',
+                                 client_secret='verysecret')
 
     await client.request_token()
 

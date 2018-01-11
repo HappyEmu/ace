@@ -1,4 +1,3 @@
-import datetime
 import logging
 
 import asyncio
@@ -19,7 +18,7 @@ class TokenResource(resource.Resource):
         return aiocoap.Message(payload=b'OK')
 
 
-class Server:
+class CoapServer:
 
     def __init__(self):
         logging.basicConfig(level=logging.INFO)
@@ -28,14 +27,23 @@ class Server:
     def start(self):
         # Resource tree creation
         root = resource.Site()
-        root.add_resource(('token',), TokenResource())
+        self.on_start(root)
 
         asyncio.Task(aiocoap.Context.create_server_context(root))
         asyncio.get_event_loop().run_forever()
 
+    def on_start(self, site):
+        pass
+
+
+class AuthorizationServer(CoapServer):
+
+    def on_start(self, site):
+        site.add_resource(('token',), TokenResource())
+
 
 def main():
-    Server().start()
+    AuthorizationServer().start()
 
 
 if __name__ == "__main__":
