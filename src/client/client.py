@@ -54,48 +54,48 @@ async def main():
     print(f"\n========== CLIENT TO AS ==========")
     print(f"\t ===> Sending {cbor_token_request} to /token at AS")
 
-    request = Message(code=Code.GET, uri=f"coap://{AS_URL}/token", payload=dumps(cbor_token_request))
+    request = Message(code=Code.GET, uri=f"coap://coap.me/test", payload=dumps(cbor_token_request))
 
     response = await protocol.request(request).response
 
-    print(f"\t <=== Received response {response.json()}")
+    # print(f"\t <=== Received response {response.json()}")
 
-    # Check Access Token
-    if response.status_code == 200:
-        token = response.json()['access_token']
-    else:
-        token = None
-
-    if not token:
-        print(f"\t ERROR: {response.json()}")
-        exit(1)
-
-    # TODO: Authenticate RS (using RS public key returned in 'rs_cnf' from AS)
-
-    # Make Resource request, sign nonce
-    signed_nonce = generate_signed_nonce(private_key)
-
-    upload_token_request = {'access_token': token,
-                            'nonce': signed_nonce}
-
-    print(f"\n========== CLIENT TO RS ==========")
-    print(f"\t ===> Sending {upload_token_request} to /authz-info at RS")
-
-    response = requests.post(RS_URL + '/authz-info', json=upload_token_request)
-
-    print(f"\t <=== Received {response.json()}")
-
-    if response.status_code != 201:
-        exit(1)
-
-    # Get protected resource
-    resource_request = {'cti': response.json()['cti']}
-
-    print(f"\t ===> Sending {resource_request} to /authz-info at RS")
-
-    response = requests.get(RS_URL + '/temperature', json=resource_request)
-
-    print(f"\t <=== Received {response.json()}")
+    # # Check Access Token
+    # if response.status_code == 200:
+    #     token = response.json()['access_token']
+    # else:
+    #     token = None
+    #
+    # if not token:
+    #     print(f"\t ERROR: {response.json()}")
+    #     exit(1)
+    #
+    # # TODO: Authenticate RS (using RS public key returned in 'rs_cnf' from AS)
+    #
+    # # Make Resource request, sign nonce
+    # signed_nonce = generate_signed_nonce(private_key)
+    #
+    # upload_token_request = {'access_token': token,
+    #                         'nonce': signed_nonce}
+    #
+    # print(f"\n========== CLIENT TO RS ==========")
+    # print(f"\t ===> Sending {upload_token_request} to /authz-info at RS")
+    #
+    # response = requests.post(RS_URL + '/authz-info', json=upload_token_request)
+    #
+    # print(f"\t <=== Received {response.json()}")
+    #
+    # if response.status_code != 201:
+    #     exit(1)
+    #
+    # # Get protected resource
+    # resource_request = {'cti': response.json()['cti']}
+    #
+    # print(f"\t ===> Sending {resource_request} to /authz-info at RS")
+    #
+    # response = requests.get(RS_URL + '/temperature', json=resource_request)
+    #
+    # print(f"\t <=== Received {response.json()}")
 
 
 if __name__ == '__main__':
