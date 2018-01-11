@@ -32,7 +32,7 @@ def generate_signed_nonce(private_key):
     jws_nonce = jws.JWS(nonce)
     jws_nonce.add_signature(private_key, alg='ES256')
 
-    return json_decode(jws_nonce.serialize())
+    return jws_nonce.serialize(compact=True)
 
 
 def main():

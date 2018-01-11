@@ -66,7 +66,7 @@ class ResourceServer(object):
 
         # Verify nonce (not necessary)
         nonce = jws.JWS()
-        nonce.deserialize(json_encode(params['nonce']))
+        nonce.deserialize(params['nonce'])
 
         try:
             nonce.verify(pop_key, alg='ES256')
