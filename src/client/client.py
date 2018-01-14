@@ -2,7 +2,6 @@ import binascii
 import os
 import asyncio
 
-import requests
 from aiocoap import *
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
@@ -54,11 +53,13 @@ async def main():
     print(f"\n========== CLIENT TO AS ==========")
     print(f"\t ===> Sending {cbor_token_request} to /token at AS")
 
-    request = Message(code=Code.GET, uri=f"coap://coap.me/test", payload=dumps(cbor_token_request))
+    request = Message(code=Code.GET,
+                      uri=f"coap://192.168.0.59/token",
+                      payload=dumps(cbor_token_request))
 
     response = await protocol.request(request).response
 
-    # print(f"\t <=== Received response {response.json()}")
+    print(f"\t <=== Received response {response.json()}")
 
     # # Check Access Token
     # if response.status_code == 200:

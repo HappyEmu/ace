@@ -45,6 +45,8 @@ class Client:
         else:
             print('Result: %s\n%r' % (response.code, response.payload))
 
+        return response
+
     def _generate_session_key(self):
         """
         Generates an asymmetric session key
@@ -61,7 +63,13 @@ async def main():
     client = await Client.create(client_id='123456789',
                                  client_secret='verysecret')
 
-    await client.request_token()
+    response = await client.request_token()
+
+    if response.code != Code.CONTENT:
+        print(f"\t ERROR: {loads(response.payload)}")
+        exit(1)
+
+    token = response.payload['access_token']
 
 
 if __name__ == "__main__":
