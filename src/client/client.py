@@ -1,8 +1,8 @@
 import binascii
 import os
 import asyncio
+import requests
 
-from aiocoap import *
 from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
@@ -36,11 +36,9 @@ def generate_signed_nonce(private_key):
     return jws_nonce.serialize(compact=True)
 
 
-async def main():
+def main():
     # Generate Asymmetric Session Key
     private_key, public_key = generate_session_key()
-
-    protocol = await Context.create_client_context()
 
     # Request access token from AS
     cbor_token_request = { CborKeys.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
@@ -53,51 +51,40 @@ async def main():
     print(f"\n========== CLIENT TO AS ==========")
     print(f"\t ===> Sending {cbor_token_request} to /token at AS")
 
-    request = Message(code=Code.GET,
-                      uri=f"coap://192.168.0.59/token",
-                      payload=dumps(cbor_token_request))
+    response = requests.post(url=f"{AS_URL}/token", data=dumps(cbor_token_request))
 
-    response = await protocol.request(request).response
+    print(f"\t <=== Received response {loads(response.content)}")
 
-    print(f"\t <=== Received response {response.json()}")
+    # Check Access Token
+    if response.status_code != 200:
+        print(f"\t ERROR: {loads(response.content)}")
+        exit(1)
 
-    # # Check Access Token
-    # if response.status_code == 200:
-    #     token = response.json()['access_token']
-    # else:
-    #     token = None
-    #
-    # if not token:
-    #     print(f"\t ERROR: {response.json()}")
-    #     exit(1)
-    #
-    # # TODO: Authenticate RS (using RS public key returned in 'rs_cnf' from AS)
-    #
-    # # Make Resource request, sign nonce
-    # signed_nonce = generate_signed_nonce(private_key)
-    #
-    # upload_token_request = {'access_token': token,
-    #                         'nonce': signed_nonce}
-    #
-    # print(f"\n========== CLIENT TO RS ==========")
-    # print(f"\t ===> Sending {upload_token_request} to /authz-info at RS")
-    #
-    # response = requests.post(RS_URL + '/authz-info', json=upload_token_request)
-    #
-    # print(f"\t <=== Received {response.json()}")
-    #
-    # if response.status_code != 201:
-    #     exit(1)
-    #
-    # # Get protected resource
-    # resource_request = {'cti': response.json()['cti']}
-    #
-    # print(f"\t ===> Sending {resource_request} to /authz-info at RS")
-    #
-    # response = requests.get(RS_URL + '/temperature', json=resource_request)
-    #
-    # print(f"\t <=== Received {response.json()}")
+    token = loads(response.content)[CborKeys.ACCESS_TOKEN]
+
+    # TODO: Authenticate RS (using RS public key returned in 'rs_cnf' from AS)
+
+    upload_token_request_payload = dumps(token)
+
+    print(f"\n========== CLIENT TO RS ==========")
+    print(f"\t ===> Uploading token to /authz-info at RS")
+
+    response = requests.post(RS_URL + '/authz-info', data=upload_token_request_payload.decode('ascii'))
+
+    print(f"\t <=== Received {response.content}")
+
+    if response.status_code != 201:
+        exit(1)
+
+    # Get protected resource
+    resource_request = {'cti': response.json()['cti']}
+
+    print(f"\t ===> Sending {resource_request} to /authz-info at RS")
+
+    response = requests.get(RS_URL + '/temperature', json=resource_request)
+
+    print(f"\t <=== Received {response.json()}")
 
 
 if __name__ == '__main__':
-    asyncio.get_event_loop().run_until_complete(main())
+    main()

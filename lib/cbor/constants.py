@@ -19,7 +19,7 @@ class Keys:
     ERROR_URI         = 17
     GRANT_TYPE        = 18
     ACCESS_TOKEN      = 19
-    TOKEN_TYPE        = 20
+    TOKEN_TYPE        = 20          # str or ub?
     EXPIRES_IN        = 21
     USERNAME          = 22
     PASSWORD          = 23

@@ -1,10 +1,10 @@
 import random
-from threading import Thread
 
 import jwt
 from aiohttp import web
 from jwcrypto import jwk, jws
-from lib.cbor.constants import Keys as CborKeys, GrantTypes
+from cbor2 import dumps, loads
+from lib.cbor.constants import Keys as CborKeys
 
 from token_cache import TokenCache
 
@@ -25,7 +25,7 @@ class ResourceServer(object):
         web.run_app(self.app, port=self.port)
 
     async def get_temperature(self, request):
-        params = await request.json()
+        params = await request.content.read()
 
         cti = params['cti']
 
@@ -41,42 +41,31 @@ class ResourceServer(object):
         return self.audience
 
     async def authz_info(self, request):
-        params = await request.json()
+        params = loads(await request.content.read())
 
         # Extract access token
-        access_token = params['access_token']
-
-        # TODO: verify audience!
+        access_token = params[CborKeys.ACCESS_TOKEN]
 
         # Verify JWT, verify token signature and audience
         try:
             decoded = jwt.decode(access_token,
                                  AS_SIGNATURE_KEY,
                                  algorithms=['HS256'],
-                                 audience=None)
+                                 audience=self.audience)
 
         except (jwt.DecodeError, jwt.InvalidAudienceError, jwt.MissingRequiredClaimError) as err:
-            return web.json_response(data={'error': str(err)}, status=401)
+            return web.Response(status=401, body=dumps({'error': str(err)}))
+
+        # Verify Audience?
 
         # Extract PoP Key
         pop_key = jwk.JWK()
         pop_key.import_key(**decoded[str(CborKeys.CNF)]['jwk'])
         # str(...) temporarily necessary because JSON does not allow integer keys
 
-        # Verify nonce (not necessary)
-        nonce = jws.JWS()
-        nonce.deserialize(params['nonce'])
-
-        try:
-            nonce.verify(pop_key, alg='ES256')
-        except jws.InvalidJWSSignature as err:
-            return str(err)
-
-        # TODO: Check if client is allowed (check scope)
-
         cti = self.token_cache.add_token(decoded)
 
-        return web.json_response(data={'cti': cti}, status=201)
+        return web.Response(status=201, body=dumps({CborKeys.CTI: cti}))
 
     def __create_app__(self):
         app = web.Application()
@@ -96,12 +85,3 @@ def create_server(num):
 
 if __name__ == '__main__':
     create_server(0)
-    # threads = []
-    #
-    # for i in range(0, 1):
-    #     thread = Thread(target=create_server, args=(i,))
-    #     threads.append(thread)
-    #     thread.start()
-    #
-    # for thread in threads:
-    #     thread.join()
