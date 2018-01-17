@@ -12,6 +12,15 @@ AS_CRYPTO_KEY = '123456789'
 AS_SIGNATURE_KEY = '723984572'
 
 
+class AudienceMismatchError(Exception):
+    def __init__(self):
+        self.message = "RS audience did not match token audience"
+
+
+def json_to_cbor(json: dict) -> dict:
+    return { int(k): json[k] for k in json.keys() }
+
+
 class ResourceServer(object):
 
     def __init__(self, port, audience):
@@ -41,29 +50,32 @@ class ResourceServer(object):
         return self.audience
 
     async def authz_info(self, request):
-        params = loads(await request.content.read())
-
         # Extract access token
-        access_token = params[CborKeys.ACCESS_TOKEN]
+        access_token = loads(await request.content.read())
 
         # Verify JWT, verify token signature and audience
         try:
-            decoded = jwt.decode(access_token,
-                                 AS_SIGNATURE_KEY,
-                                 algorithms=['HS256'],
-                                 audience=self.audience)
+            decoded = json_to_cbor(jwt.decode(access_token,
+                                              AS_SIGNATURE_KEY,
+                                              algorithms=['HS256'],
+                                              audience=None))
 
-        except (jwt.DecodeError, jwt.InvalidAudienceError, jwt.MissingRequiredClaimError) as err:
+            # Check if audience claim in token matches audience identifier of this resource server
+            if decoded[CborKeys.AUD] != self.audience:
+                raise AudienceMismatchError()
+
+        except (jwt.DecodeError,
+                jwt.InvalidAudienceError,
+                jwt.MissingRequiredClaimError,
+                AudienceMismatchError) as err:
             return web.Response(status=401, body=dumps({'error': str(err)}))
-
-        # Verify Audience?
 
         # Extract PoP Key
         pop_key = jwk.JWK()
-        pop_key.import_key(**decoded[str(CborKeys.CNF)]['jwk'])
+        pop_key.import_key(**decoded[CborKeys.CNF]['jwk'])
         # str(...) temporarily necessary because JSON does not allow integer keys
 
-        cti = self.token_cache.add_token(decoded)
+        cti = self.token_cache.add_token(decoded, pop_key=pop_key)
 
         return web.Response(status=201, body=dumps({CborKeys.CTI: cti}))
 

@@ -1,4 +1,3 @@
-from client_registry import ClientRegistry
 from aiohttp import web
 from jwcrypto import jwk
 from jwcrypto.common import json_decode
@@ -8,6 +7,8 @@ import time
 from cbor2 import dumps, loads
 from lib.cbor.constants import Keys as CborKeys
 
+from client_registry import ClientRegistry
+from key_registry import KeyRegistry
 
 class HttpServer:
     def __init__(self, port: int):
@@ -25,13 +26,14 @@ class HttpServer:
 
 class AuthorizationServer(HttpServer):
 
-    def __init__(self, crypto_key, signature_key):
+    def __init__(self, crypto_key: str, signature_key: str):
         super().__init__(port=8080)
 
         self.crypto_key = crypto_key
         self.signature_key = signature_key
         self.client_registry = ClientRegistry()
-        self.client_registry.register_client(client_id="123456789", client_secret="verysecret")
+        self.client_registry.register_client(client_id="ace_client_1", client_secret="ace_client_1_secret_123456")
+        self.key_registry = KeyRegistry()
 
     def on_start(self, router):
         router.add_get('/clients', self.clients)
@@ -48,6 +50,7 @@ class AuthorizationServer(HttpServer):
 
         return web.json_response({'approved_clients': [c.client_id for c in self.client_registry.registered_clients]})
 
+    # POST
     async def token(self, request):
         """
         Validates the incoming requests and grants an access token if valid. Must be POST [ACE 5.6.1]
@@ -77,15 +80,22 @@ class AuthorizationServer(HttpServer):
         # Create access token, bind PoP key
         token = self._bind_token(client_claims, client_pk)
 
+        # Register bound PoP key for later reference
+        self.key_registry.add_key(client_id, client_pk)
+
         response = {CborKeys.ACCESS_TOKEN: token.decode('ascii'),
                     CborKeys.TOKEN_TYPE: 'pop',
                     CborKeys.PROFILE: 'coap_oscore'}
 
         return web.Response(status=200, body=dumps(response))
 
-        # Verifies that
-
-    def _bind_token(self, client_claims: dict, session_key: jwk.JWK):
+    def _bind_token(self, client_claims: dict, session_key: jwk.JWK) -> bytes:
+        """
+        Bind session_key to access_token
+        :param client_claims: client claims to be included in the access token
+        :param session_key: PoP key to be bound to the access token
+        :return:
+        """
         # Bind session key to token
         claims = {CborKeys.ISS: 'ace.as-server.com',
                   CborKeys.IAT: int(time.time()),
@@ -100,7 +110,7 @@ class AuthorizationServer(HttpServer):
 
         return token
 
-    def _verify_token_request(self, request_data: dict):
+    def _verify_token_request(self, request_data: dict) -> bool:
         """
         Verify that the incoming request data conform to the standard
         :param request_data: incoming data as CBOR Map
@@ -115,6 +125,35 @@ class AuthorizationServer(HttpServer):
             return False
 
         return all(key in request_data for key in expected_keys)
+
+    # POST
+    async def introspect(self, request):
+        params = loads(request.content.read())
+
+        # Check if token was supplied
+        if not CborKeys.TOKEN in params
+            return web.Response(status=400, body=dumps({'error': 'missing "token" parameter'}))
+
+        token = params[CborKeys.TOKEN] # required
+        token_type_hint = params[CborKeys.TOKEN_TYPE_HINT] # optional
+
+        # TODO: Retrieve context from token
+        # client_id = ...
+        #
+
+        response = {
+            'active': True,
+            'scope': 'read',
+            'cnf': {
+                'COSE_KEY': {
+
+                }
+            }
+        }
+
+        return web.Response(status=201, body=dumps({}))
+
+
 
 
 def main():
