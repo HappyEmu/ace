@@ -3,11 +3,12 @@ import jwt
 import requests
 
 from aiohttp import web
-from jwcrypto import jwk, jws
+from jwcrypto import jwk
 from cbor2 import dumps, loads
+
 from lib.cbor.constants import Keys as CK
 from lib.http_server import HttpServer
-
+from lib.cbor.cbor import json_to_cbor
 from token_cache import TokenCache
 
 AS_CRYPTO_KEY = '123456789'
@@ -15,17 +16,16 @@ AS_SIGNATURE_KEY = '723984572'
 AS_URL = 'http://localhost:8080'
 
 
-class AudienceMismatchError(Exception): pass
-class IntrospectionFailedError(Exception): pass
-class IntrospectNotActiveError(Exception): pass
+class AudienceMismatchError(Exception):
+    pass
 
 
-def json_to_cbor(json: dict) -> dict:
-    """
-    Convert string keys to integer keys
-    """
+class IntrospectionFailedError(Exception):
+    pass
 
-    return { int(k): json[k] for k in json.keys() }
+
+class IntrospectNotActiveError(Exception):
+    pass
 
 
 class ResourceServer(HttpServer):
@@ -62,9 +62,8 @@ class ResourceServer(HttpServer):
         # Extract access token
         access_token = loads(await request.content.read())
 
-        # Verify JWT
+        # Verify if valid JWT from AS
         try:
-            # Verify if valid JWT from AS
             decoded = json_to_cbor(jwt.decode(access_token,
                                               AS_SIGNATURE_KEY,
                                               algorithms=['HS256'],
@@ -76,7 +75,7 @@ class ResourceServer(HttpServer):
 
         # Check if audience claim in token matches audience identifier of this resource server
         if decoded[CK.AUD] != self.audience:
-            raise AudienceMismatchError()
+            return web.Response(status=403, body=dumps({'error': 'Audience mismatch'}))
 
         # Extract PoP Key
         pop_key = jwk.JWK(**decoded[CK.CNF]['jwk'])
@@ -93,11 +92,12 @@ class ResourceServer(HttpServer):
 
         request = {
             CK.TOKEN: token,
+            CK.TOKEN_TYPE_HINT: 'pop',
             CK.CLIENT_ID: self.client_id,
             CK.CLIENT_SECRET: self.client_secret
         }
 
-        response = requests.post(f"{AS_URL}/introspect")
+        response = requests.post(f"{AS_URL}/introspect", data=dumps(request))
         response_payload = loads(response.content)
         """ ACE p. 61
         Response-Payload:

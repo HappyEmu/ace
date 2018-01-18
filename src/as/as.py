@@ -1,13 +1,13 @@
-from aiohttp import web
-from jwcrypto import jwk
-from jwcrypto.common import json_decode
 import jwt
 import time
 
+from aiohttp import web
+from jwcrypto import jwk
+from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
+
 from lib.cbor.constants import Keys as CK
 from lib.http_server import HttpServer
-
 from client_registry import ClientRegistry
 from key_registry import KeyRegistry
 

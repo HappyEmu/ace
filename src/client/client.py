@@ -1,10 +1,10 @@
 import requests
 import os
 
-from jwcrypto import jwk, jws
+from jwcrypto import jwk
 from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
-from lib.cbor.constants import Keys as CborKeys, GrantTypes
+from lib.cbor.constants import Keys as CK, GrantTypes
 
 AS_URL = 'http://localhost:8080'
 RS_URL = 'http://localhost:8081'
@@ -78,12 +78,12 @@ class Client:
 
         pop_key = self.session.public_key
 
-        payload = { CborKeys.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
-                    CborKeys.CLIENT_ID:     self.client_id,
-                    CborKeys.CLIENT_SECRET: self.client_secret,
-                    CborKeys.SCOPE:         'read_temperature',
-                    CborKeys.AUD:           'tempSensor0',
-                    CborKeys.CNF:           { 'jwk': json_decode(pop_key.export())} }
+        payload = { CK.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
+                    CK.CLIENT_ID:     self.client_id,
+                    CK.CLIENT_SECRET: self.client_secret,
+                    CK.SCOPE:         'read_temperature',
+                    CK.AUD:           'tempSensor0',
+                    CK.CNF:           { 'jwk': json_decode(pop_key.export())} }
 
         response = requests.post(url=f"{url}/token", data=dumps(payload))
 
@@ -91,7 +91,7 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        token = loads(response.content)[CborKeys.ACCESS_TOKEN]
+        token = loads(response.content)[CK.ACCESS_TOKEN]
 
         self.session.bind_token(token)
 
