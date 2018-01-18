@@ -1,5 +1,5 @@
-import jwt
 import time
+import os
 
 from aiohttp import web
 from jwcrypto import jwk
@@ -10,6 +10,12 @@ from lib.cbor.constants import Keys as CK
 from lib.http_server import HttpServer
 from client_registry import ClientRegistry
 from key_registry import KeyRegistry
+from token_registry import TokenRegistry
+from lib.access_token import AccessToken
+
+
+def key_to_dict(key: jwk.JWK) -> dict:
+    return json_decode(key.export())
 
 
 class AuthorizationServer(HttpServer):
@@ -18,12 +24,15 @@ class AuthorizationServer(HttpServer):
         self.crypto_key = crypto_key
         self.signature_key = signature_key
         self.client_registry = ClientRegistry()
-        self.client_registry.register_client(client_id="ace_client_1", client_secret="ace_client_1_secret_123456")
+        self.client_registry.register_client(client_id="ace_client_1",
+                                             client_secret="ace_client_1_secret_123456")
         self.key_registry = KeyRegistry()
+        self.token_registry = TokenRegistry()
 
     def on_start(self, router):
         router.add_get('/clients', self.clients)
         router.add_post('/token', self.token)
+        router.add_post('/introspect', self.introspect)
 
     def verify_client(self, client_id, client_secret):
         return self.client_registry.check_secret(client_id, client_secret)
@@ -33,8 +42,11 @@ class AuthorizationServer(HttpServer):
         Returns a list of all approved client IDs.
         DEBUG ONLY!
         """
+        response = {
+            'approved_clients': [c.client_id for c in self.client_registry.registered_clients]
+        }
 
-        return web.json_response({'approved_clients': [c.client_id for c in self.client_registry.registered_clients]})
+        return web.json_response(response)
 
     # POST
     async def token(self, request):
@@ -56,43 +68,53 @@ class AuthorizationServer(HttpServer):
         if not self.verify_client(client_id, client_secret):
             return web.Response(status=400, body=dumps({'error': 'unauthorized_client'}))
 
-        # Extract Clients Public key
-        client_pk = jwk.JWK()
-        client_pk.import_key(**params[CK.CNF]['jwk'])
+        # Extract Clients Public PoP key
+        client_pop_key = jwk.JWK(**params[CK.CNF]['COSE_KEY'])
 
         # Extract client claims scope and audience
         client_claims = {k: params[k] for k in (CK.SCOPE, CK.AUD)}
 
         # Create access token, bind PoP key
-        token = self._bind_token(client_claims, client_pk)
+        token = self._bind_token(client_claims, client_pop_key)
 
         # Register bound PoP key for later reference
-        self.key_registry.add_key(client_id, client_pk)
+        self.key_registry.add_key(client_id, client_pop_key)
+        self.token_registry.add_token(token, self_contained=True)
 
-        response = {CK.ACCESS_TOKEN: token.decode('ascii'),
-                    CK.TOKEN_TYPE: 'pop',
-                    CK.PROFILE: 'coap_oscore'}
+        token_sent = token.sign_and_export_self_contained(self.signature_key)
+        # token_sent = token.export_referential()
+
+        response = {
+            CK.ACCESS_TOKEN: token_sent,
+            CK.TOKEN_TYPE: 'pop',
+            CK.PROFILE: 'coap_oscore'
+        }
 
         return web.Response(status=200, body=dumps(response))
 
-    def _bind_token(self, client_claims: dict, session_key: jwk.JWK) -> bytes:
+    def _bind_token(self, client_claims: dict, session_key: jwk.JWK) -> AccessToken:
         """
         Bind session_key to access_token
         :param client_claims: client claims to be included in the access token
         :param session_key: PoP key to be bound to the access token
         :return:
         """
-        # Bind session key to token
-        claims = {CK.ISS: 'ace.as-server.com',
-                  CK.IAT: int(time.time()),
-                  CK.EXP: int(time.time() + 7200.0),
-                  CK.CNF: {'jwk': json_decode(session_key.export())}}
+        cti = os.urandom(2)
+
+        # Claims to be included in the access token
+        claims = {
+            CK.ISS: 'ace.as-server.com',
+            CK.IAT: int(time.time()),
+            CK.EXP: int(time.time() + 7200.0),
+            CK.CTI: cti.hex()  # TODO: use 'bytes' instead of string as per spec
+        }
 
         # Add client claims (aud and scope)
         claims.update(client_claims)
 
-        # Create signed JWT
-        token = jwt.encode(payload=claims, key=self.signature_key, algorithm='HS256')
+        # Create Token and bind PoP key
+        token = AccessToken(claims=claims)
+        token.bind_key(session_key)
 
         return token
 
@@ -114,7 +136,7 @@ class AuthorizationServer(HttpServer):
 
     # POST
     async def introspect(self, request):
-        params = loads(request.content.read())
+        params = loads(await request.content.read())
 
         # Check if token was supplied
         if CK.TOKEN not in params:
@@ -123,19 +145,17 @@ class AuthorizationServer(HttpServer):
         token = params[CK.TOKEN]  # required
         token_type_hint = params[CK.TOKEN_TYPE_HINT]  # optional
 
-        # TODO: Retrieve context (PoP) from token and retrieve authorization information from 'DB'
-        # client_id = ...
-        # pop_key = ...
+        access_context = self.token_registry.get_token(reference=token)
 
         response = {
             CK.ACTIVE: True,
-            CK.SCOPE: 'read_temperature',
-            CK.AUD: '...',
-            CK.ISS: '...',
-            CK.EXP: '...',
-            CK.IAT: '...',
+            CK.SCOPE: access_context.scope,
+            CK.AUD:   access_context.audience,
+            CK.ISS:   access_context.issuer,
+            CK.EXP:   access_context.expires,
+            CK.IAT:   access_context.issued_at,
             CK.CNF: {
-                'COSE_KEY': {}
+                'COSE_KEY': key_to_dict(access_context.bound_key)
             }
         }
 
@@ -145,7 +165,7 @@ class AuthorizationServer(HttpServer):
 def main():
     server = AuthorizationServer(crypto_key='123456789',
                                  signature_key='723984572')
-    server.start()
+    server.start(port=8080)
 
 
 if __name__ == "__main__":

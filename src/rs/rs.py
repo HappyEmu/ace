@@ -46,7 +46,7 @@ class ResourceServer(HttpServer):
         token = self.token_cache.get_token()
 
         # Verify scope
-        if token[str(CK.SCOPE)] != 'read_temperature':
+        if token[CK.SCOPE] != 'read_temperature':
             return web.Response(status=401, body=dumps({'error': 'not authorized'}))
 
         # TODO: Use OSCORE to encrypt and authenticate with PoP key in token
@@ -61,6 +61,8 @@ class ResourceServer(HttpServer):
     async def authz_info(self, request):
         # Extract access token
         access_token = loads(await request.content.read())
+
+        # introspect_payload = self.introspect(access_token)
 
         # Verify if valid JWT from AS
         try:
@@ -78,7 +80,7 @@ class ResourceServer(HttpServer):
             return web.Response(status=403, body=dumps({'error': 'Audience mismatch'}))
 
         # Extract PoP Key
-        pop_key = jwk.JWK(**decoded[CK.CNF]['jwk'])
+        pop_key = jwk.JWK(**decoded[CK.CNF]['COSE_KEY'])
 
         self.token_cache.add_token(token=decoded, pop_key=pop_key)
 
@@ -112,7 +114,7 @@ class ResourceServer(HttpServer):
         }
         """
 
-        if response.status_code != 200:
+        if response.status_code != 201:
             raise IntrospectionFailedError()
 
         if not response_payload[CK.ACTIVE]:

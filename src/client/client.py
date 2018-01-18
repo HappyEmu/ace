@@ -78,12 +78,14 @@ class Client:
 
         pop_key = self.session.public_key
 
-        payload = { CK.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
-                    CK.CLIENT_ID:     self.client_id,
-                    CK.CLIENT_SECRET: self.client_secret,
-                    CK.SCOPE:         'read_temperature',
-                    CK.AUD:           'tempSensor0',
-                    CK.CNF:           { 'jwk': json_decode(pop_key.export())} }
+        payload = {
+            CK.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
+            CK.CLIENT_ID:     self.client_id,
+            CK.CLIENT_SECRET: self.client_secret,
+            CK.SCOPE:         'read_temperature',
+            CK.AUD:           'tempSensor0',
+            CK.CNF:           { 'COSE_KEY': json_decode(pop_key.export())}
+        }
 
         response = requests.post(url=f"{url}/token", data=dumps(payload))
 
@@ -100,6 +102,7 @@ class Client:
         Upload access token to resource server to establish security context
         :param url: The url of the resource server
         """
+
         response = requests.post(url + '/authz-info', data=dumps(self.session.token))
 
         if response.status_code != 204:
