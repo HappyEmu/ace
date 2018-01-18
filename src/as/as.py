@@ -5,30 +5,16 @@ import jwt
 import time
 
 from cbor2 import dumps, loads
-from lib.cbor.constants import Keys as CborKeys
+from lib.cbor.constants import Keys as CK
+from lib.http_server import HttpServer
 
 from client_registry import ClientRegistry
 from key_registry import KeyRegistry
-
-class HttpServer:
-    def __init__(self, port: int):
-        self.port = port
-
-    def start(self):
-        app = web.Application()
-        self.on_start(app.router)
-
-        web.run_app(app, port=self.port)
-
-    def on_start(self, router):
-        pass
 
 
 class AuthorizationServer(HttpServer):
 
     def __init__(self, crypto_key: str, signature_key: str):
-        super().__init__(port=8080)
-
         self.crypto_key = crypto_key
         self.signature_key = signature_key
         self.client_registry = ClientRegistry()
@@ -63,8 +49,8 @@ class AuthorizationServer(HttpServer):
         if not self._verify_token_request(params):
             return web.Response(status=400, body=dumps({'error': 'invalid_request'}))
 
-        client_id = params[CborKeys.CLIENT_ID]
-        client_secret = params[CborKeys.CLIENT_SECRET]
+        client_id = params[CK.CLIENT_ID]
+        client_secret = params[CK.CLIENT_SECRET]
 
         # Check if client is registered
         if not self.verify_client(client_id, client_secret):
@@ -72,10 +58,10 @@ class AuthorizationServer(HttpServer):
 
         # Extract Clients Public key
         client_pk = jwk.JWK()
-        client_pk.import_key(**params[CborKeys.CNF]['jwk'])
+        client_pk.import_key(**params[CK.CNF]['jwk'])
 
         # Extract client claims scope and audience
-        client_claims = {k: params[k] for k in (CborKeys.SCOPE, CborKeys.AUD)}
+        client_claims = {k: params[k] for k in (CK.SCOPE, CK.AUD)}
 
         # Create access token, bind PoP key
         token = self._bind_token(client_claims, client_pk)
@@ -83,9 +69,9 @@ class AuthorizationServer(HttpServer):
         # Register bound PoP key for later reference
         self.key_registry.add_key(client_id, client_pk)
 
-        response = {CborKeys.ACCESS_TOKEN: token.decode('ascii'),
-                    CborKeys.TOKEN_TYPE: 'pop',
-                    CborKeys.PROFILE: 'coap_oscore'}
+        response = {CK.ACCESS_TOKEN: token.decode('ascii'),
+                    CK.TOKEN_TYPE: 'pop',
+                    CK.PROFILE: 'coap_oscore'}
 
         return web.Response(status=200, body=dumps(response))
 
@@ -97,16 +83,16 @@ class AuthorizationServer(HttpServer):
         :return:
         """
         # Bind session key to token
-        claims = {CborKeys.ISS: 'ace.as-server.com',
-                  CborKeys.IAT: int(time.time()),
-                  CborKeys.EXP: int(time.time() + 7200.0),
-                  CborKeys.CNF: {'jwk': json_decode(session_key.export())}}
+        claims = {CK.ISS: 'ace.as-server.com',
+                  CK.IAT: int(time.time()),
+                  CK.EXP: int(time.time() + 7200.0),
+                  CK.CNF: {'jwk': json_decode(session_key.export())}}
 
         # Add client claims (aud and scope)
         claims.update(client_claims)
 
         # Create signed JWT
-        token = jwt.encode(claims, self.signature_key, algorithm='HS256')
+        token = jwt.encode(payload=claims, key=self.signature_key, algorithm='HS256')
 
         return token
 
@@ -116,10 +102,10 @@ class AuthorizationServer(HttpServer):
         :param request_data: incoming data as CBOR Map
         :return: True if request payload is valid, False otherwise
         """
-        expected_keys = [CborKeys.GRANT_TYPE,
-                         CborKeys.CLIENT_ID,
-                         CborKeys.CLIENT_SECRET,
-                         CborKeys.AUD]
+        expected_keys = [CK.GRANT_TYPE,
+                         CK.CLIENT_ID,
+                         CK.CLIENT_SECRET,
+                         CK.AUD]
 
         if request_data is None:
             return False
@@ -131,29 +117,29 @@ class AuthorizationServer(HttpServer):
         params = loads(request.content.read())
 
         # Check if token was supplied
-        if not CborKeys.TOKEN in params
+        if CK.TOKEN not in params:
             return web.Response(status=400, body=dumps({'error': 'missing "token" parameter'}))
 
-        token = params[CborKeys.TOKEN] # required
-        token_type_hint = params[CborKeys.TOKEN_TYPE_HINT] # optional
+        token = params[CK.TOKEN]  # required
+        token_type_hint = params[CK.TOKEN_TYPE_HINT]  # optional
 
-        # TODO: Retrieve context from token
+        # TODO: Retrieve context (PoP) from token and retrieve authorization information from 'DB'
         # client_id = ...
-        #
+        # pop_key = ...
 
         response = {
-            'active': True,
-            'scope': 'read',
-            'cnf': {
-                'COSE_KEY': {
-
-                }
+            CK.ACTIVE: True,
+            CK.SCOPE: 'read_temperature',
+            CK.AUD: '...',
+            CK.ISS: '...',
+            CK.EXP: '...',
+            CK.IAT: '...',
+            CK.CNF: {
+                'COSE_KEY': {}
             }
         }
 
-        return web.Response(status=201, body=dumps({}))
-
-
+        return web.Response(status=201, body=dumps(response))
 
 
 def main():

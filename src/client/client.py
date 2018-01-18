@@ -30,13 +30,13 @@ class AceSession:
 
     @classmethod
     def create(cls):
-        (priv_key, pub_key) = AceSession.generate_session_key()
+        (prv_key, pub_key) = AceSession.generate_session_key()
 
         session_id = AceSession.session_id
         AceSession.session_id += 1
 
         return AceSession(session_id=session_id,
-                          private_key=priv_key,
+                          private_key=prv_key,
                           public_key=pub_key)
 
     @staticmethod
@@ -102,7 +102,7 @@ class Client:
         """
         response = requests.post(url + '/authz-info', data=dumps(self.session.token))
 
-        if response.status_code != 201:
+        if response.status_code != 204:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
