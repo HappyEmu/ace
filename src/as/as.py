@@ -2,7 +2,7 @@ import time
 import os
 
 from aiohttp import web
-from jwcrypto import jwk
+from jwcrypto import jwk, jws
 from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
 
