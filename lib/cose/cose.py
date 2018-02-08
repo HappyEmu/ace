@@ -3,7 +3,8 @@ from typing import Union
 
 from cbor2 import loads, dumps, CBORTag as Tag
 from ecdsa import SigningKey, VerifyingKey, NIST192p, NIST256p
-import json as j
+
+from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 
 
 class MessageTypes:
@@ -31,10 +32,12 @@ class CoseHeader:
     COUNTER_SIGNATURE = 7   # COSE_Signature
 
 
-class ECDSA_COSE:
+class Algorithms:
     ES256 = -7
     ES384 = -35
     ES512 = -36
+    AES_CCM_16_64_128 = 10
+    AES_CCM_64_64_128 = 12
 
 
 signature_algorithms = ['ES256', 'ES384', 'ES521']
@@ -42,12 +45,12 @@ signature_algorithms = ['ES256', 'ES384', 'ES521']
 
 class Signature1Message:
 
-    def __init__(self, payload: bytes, external_aad: bytes=None):
+    def __init__(self, payload: bytes=b'', external_aad: bytes=b''):
         self.payload = payload
         self.external_aad = external_aad
 
     def serialize_signed(self, key: SigningKey) -> bytes:
-        protected_header = {CoseHeader.ALG: ECDSA_COSE.ES256}
+        protected_header = {CoseHeader.ALG: Algorithms.ES256}
         unprotected_header = {CoseHeader.KID: b'AsymmetricECDSA256'}
 
         signature = self._create_signature(context="Signature1",
@@ -72,10 +75,6 @@ class Signature1Message:
                           external_aad: bytes,
                           sign_protected: bytes = None) -> bytes:
 
-        # EAAD and payload should be empty binary string if not present
-        external_aad = b'' if external_aad is None else external_aad
-        payload = b'' if payload is None else payload
-
         if sign_protected is not None:
             sign_structure = [context, body_protected, sign_protected, external_aad, payload]
         else:
@@ -88,14 +87,44 @@ class Signature1Message:
         return signature
 
 
+class Encrypt0Message:
+
+    def __init__(self, plaintext: bytes, external_aad: bytes = b''):
+        self.plaintext = plaintext
+        self.external_aad = external_aad
+
+    def serialize(self, iv: bytes, key: bytes):
+        protected_header = {CoseHeader.ALG: Algorithms.AES_CCM_64_64_128}
+        unprotected_header = {CoseHeader.IV: iv}
+
+        enc_structure = ["Encrypt0", dumps(protected_header), self.external_aad ]
+        aad = dumps(enc_structure)
+
+        # key = AESCCM.generate_key(bit_length=128)
+        ciphertext = self._encrypt(key, iv, aad=aad)
+
+        cose_encrypt0 = [protected_header, unprotected_header, ciphertext]
+
+        return dumps(Tag(MessageTypes.COSE_ENCRYPT0, cose_encrypt0))
+
+
+    # AES-CCM-64-64-128 = AES-CCM mode 128-bit key, 64-bit tag, 7-byte nonce
+    def _encrypt(self, key: bytes, iv: bytes, aad: bytes):
+        cipher = AESCCM(key, tag_length=8)
+        ciphertext = cipher.encrypt(nonce=iv, data=self.plaintext, associated_data=aad)
+
+        return ciphertext
+
+
 def main():
-    payload = "Hello WOrlasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdfasdfasdfdasdfasdf"
+    plaintext = b"This is the content."
 
-    key = SigningKey.generate(curve=NIST256p, hashfunc=hashlib.sha256)
+    iv = bytes.fromhex("89F52F65A1C580")
+    key = bytes.fromhex("849B57219DAE48DE646D07DBB533566E")
 
-    sig = Signature1Message(payload=dumps(payload), external_aad=None)
-
-    print(len(sig.serialize_signed(key)))
+    msg = Encrypt0Message(plaintext, b'')
+    cbor = msg.serialize(iv, key)
+    print(cbor.hex())
 
 
 if __name__ == '__main__':
