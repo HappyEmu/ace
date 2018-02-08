@@ -77,6 +77,6 @@ class Message2(EdhocMessage):
         return hashfunc(message_1 + c.dumps(self.data_2()))
 
     def cose_sig_v(self):
-        return signature1_message(payload=None, key=self)
+        return signature1_message(payload=None, key=self.key)
 
 

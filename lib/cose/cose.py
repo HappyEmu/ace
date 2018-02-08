@@ -1,8 +1,9 @@
+import hashlib
+from typing import Union
+
 from cbor2 import loads, dumps, CBORTag as Tag
-from jwcrypto import jwk
+from ecdsa import SigningKey, VerifyingKey, NIST192p, NIST256p
 import json as j
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
 
 
 class MessageTypes:
@@ -30,7 +31,7 @@ class CoseHeader:
     COUNTER_SIGNATURE = 7   # COSE_Signature
 
 
-class ECDSA:
+class ECDSA_COSE:
     ES256 = -7
     ES384 = -35
     ES512 = -36
@@ -39,65 +40,63 @@ class ECDSA:
 signature_algorithms = ['ES256', 'ES384', 'ES521']
 
 
-def signature1_message(payload: bytes, key: jwk.JWK, alg: int):
-    protected_header = { CoseHeader.ALG: ECDSA.ES256}
-    unprotected_header = { CoseHeader.KID: b'AsymmetricECDSA256' }
+class Signature1Message:
 
-    signature = _create_signature(context="Signature1",
-                                  body_protected=dumps(protected_header),
-                                  payload=payload,
-                                  external_aad=b'',
-                                  key=key)
-    # Note: signature is not stable even if signature data is stable, RNG in ECDSA
+    def __init__(self, payload: bytes, external_aad: bytes=None):
+        self.payload = payload
+        self.external_aad = external_aad
 
-    cose_sign1 = [
-        protected_header,
-        unprotected_header,
-        payload,
-        signature,
-    ]
+    def serialize_signed(self, key: SigningKey) -> bytes:
+        protected_header = {CoseHeader.ALG: ECDSA_COSE.ES256}
+        unprotected_header = {CoseHeader.KID: b'AsymmetricECDSA256'}
 
-    dumps(Tag(MessageTypes.COSE_SIGN1, cose_sign1))
+        signature = self._create_signature(context="Signature1",
+                                           body_protected=dumps(protected_header),
+                                           payload=self.payload,
+                                           external_aad=self.external_aad,
+                                           key=key)
+        cose_sign1 = [
+            protected_header,
+            unprotected_header,
+            self.payload,
+            signature,
+        ]
+
+        return dumps(Tag(MessageTypes.COSE_SIGN1, cose_sign1))
+
+    def _create_signature(self,
+                          context: str,
+                          body_protected: bytes,
+                          payload: bytes,
+                          key: SigningKey,
+                          external_aad: bytes,
+                          sign_protected: bytes = None) -> bytes:
+
+        # EAAD and payload should be empty binary string if not present
+        external_aad = b'' if external_aad is None else external_aad
+        payload = b'' if payload is None else payload
+
+        if sign_protected is not None:
+            sign_structure = [context, body_protected, sign_protected, external_aad, payload]
+        else:
+            sign_structure = [context, body_protected, external_aad, payload]
+
+        to_sign = dumps(sign_structure)
+
+        signature = key.sign_deterministic(to_sign, hashlib.sha256)
+
+        return signature
 
 
-def _create_signature(context: str,
-                      body_protected: bytes,
-                      payload: bytes,
-                      key: jwk.JWK,
-                      external_aad: bytes,
-                      alg: 'str' = 'ES256',
-                      sign_protected: bytes = None) -> bytes:
-    if sign_protected is not None:
-        sign_structure = [context, body_protected, sign_protected, external_aad, payload]
-    else:
-        sign_structure = [context, body_protected, external_aad, payload]
+def main():
+    payload = "Hello WOrlasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdfasdfasdfdasdfasdf"
 
-    to_sign = dumps(sign_structure)
+    key = SigningKey.generate(curve=NIST256p, hashfunc=hashlib.sha256)
 
-    signature_key = key.get_op_key('sign')
-    signature = signature_key.sign(to_sign, ec.ECDSA(hashes.SHA256()))
+    sig = Signature1Message(payload=dumps(payload), external_aad=None)
 
-    return signature
+    print(len(sig.serialize_signed(key)))
 
 
 if __name__ == '__main__':
-    payload = {1: 'coap://as.example.com',
-               2: 'erikw',
-               3: 'coap://light.example.com',
-               4: 1444064944,
-               5: 1443944944,
-               6: 1443944944,
-               7: bytes.fromhex('0b71')}
-
-    json = """{
-                "kty":"EC",
-                "kid":"11",
-                "crv":"P-256",
-                "x":"usWxHK2PmfnHKwXPS54m0kTcGJ90UiglWiGahtagnv8",
-                "y":"IBOL-C3BttVivg-lSreASjpkttcsz-1rb7btKLv8EX4",
-                "d":"V8kgd2ZBRuh2dgyVINBUqpPDr7BOMGcF22CQMIUHtNM"
-             }"""
-
-    key = jwk.JWK(**j.loads(json))
-
-    signature1_message(payload=dumps("This is the content."), key=key, alg=None)
+    main()
