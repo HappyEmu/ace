@@ -1,1 +1,1 @@
-from lib.cose.cose import signature1_message
+from lib.cose.cose import Signature1Message, Encrypt0Message, CoseKey

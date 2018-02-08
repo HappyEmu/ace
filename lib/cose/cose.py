@@ -40,6 +40,39 @@ class Algorithms:
     AES_CCM_64_64_128 = 12
 
 
+class CoseKey:
+    KTY = 1             # tstr
+    KID = 2             # bstr
+    ALG = 3             # tstr / int
+    KEY_OPS = 4         # [(tstr/int)]
+    BASE_IV = 5         # bstr
+
+    CRV = -1
+    X = -2
+    Y = -3
+    D = -4
+
+    class Op:
+        SIGN = 1
+        VERIFY = 2
+        ENCRYPT = 3
+        DECRYPT = 4
+
+    class Type:
+        OKP = 1
+        EC2 = 2
+        SYMMETRIC = 4
+
+    class Curves:
+        P_256 = 1
+        P_384 = 2
+        P_521 = 3
+        X25519 = 4
+        X448 = 5
+        Ed25519 = 6
+        Ed449 = 7
+
+
 signature_algorithms = ['ES256', 'ES384', 'ES521']
 
 

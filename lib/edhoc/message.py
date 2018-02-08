@@ -4,7 +4,7 @@ from functools import reduce
 import cbor2 as c
 from ecdsa import VerifyingKey
 
-from lib.cose import signature1_message
+from lib.cose import Signature1Message, Encrypt0Message
 
 EDHOC_MSG_1 = 1
 EDHOC_MSG_2 = 2
@@ -57,9 +57,9 @@ class Message2(EdhocMessage):
 
     _tag = EDHOC_MSG_2
 
-    def __init__(self, partner_session_id: bytes, session_id: bytes, nonce: bytes, key: VerifyingKey):
-        self.partner_session_id = partner_session_id
+    def __init__(self, session_id: bytes, peer_session_id: bytes, nonce: bytes, key: VerifyingKey):
         self.session_id = session_id
+        self.peer_session_id = peer_session_id
         self.nonce = nonce
         self.key = key
 
@@ -67,16 +67,22 @@ class Message2(EdhocMessage):
     def content(self):
         return [self.data_2, self.cose_enc_2]
 
+    @property
     def data_2(self):
-        return [self._tag, self.partner_session_id, self.session_id, self.nonce, self.key.to_der()]
-
-    def cose_enc_2(self):
-        pass
+        return [self._tag, self.peer_session_id, self.session_id, self.nonce, self.key.to_der()]
 
     def aad_2(self, hashfunc, message_1: bytes):
-        return hashfunc(message_1 + c.dumps(self.data_2()))
+        return hashfunc(message_1 + c.dumps(self.data_2))
 
-    def cose_sig_v(self):
-        return signature1_message(payload=None, key=self.key)
+    def cose_enc_2(self):
+        return Encrypt0Message(plaintext=self.cose_sig_v())
 
+    def cose_sig_v(self, key, hashfunc, message_1):
+        return Signature1Message(payload=b'', external_aad=self.aad_2(hashfunc, message_1)).serialize_signed(key)
 
+class Message3(EdhocMessage):
+
+    _tag = EDHOC_MSG_3
+
+    def __init__(self, session_id):
+        pass
