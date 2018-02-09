@@ -86,11 +86,11 @@ class Signature1Message:
         protected_header = {CoseHeader.ALG: Algorithms.ES256}
         unprotected_header = {CoseHeader.KID: b'AsymmetricECDSA256'}
 
-        signature = self._create_signature(context="Signature1",
-                                           body_protected=dumps(protected_header),
-                                           payload=self.payload,
-                                           external_aad=self.external_aad,
-                                           key=key)
+        signature = Signature1Message.create_signature(context="Signature1",
+                                                       body_protected=dumps(protected_header),
+                                                       payload=self.payload,
+                                                       external_aad=self.external_aad,
+                                                       key=key)
         cose_sign1 = [
             protected_header,
             unprotected_header,
@@ -100,24 +100,52 @@ class Signature1Message:
 
         return dumps(Tag(MessageTypes.COSE_SIGN1, cose_sign1))
 
-    def _create_signature(self,
-                          context: str,
-                          body_protected: bytes,
-                          payload: bytes,
-                          key: SigningKey,
-                          external_aad: bytes,
-                          sign_protected: bytes = None) -> bytes:
+    @classmethod
+    def create_signature(cls,
+                         context: str,
+                         body_protected: bytes,
+                         payload: bytes,
+                         key: SigningKey,
+                         external_aad: bytes,
+                         sign_protected: bytes = None) -> bytes:
 
-        if sign_protected is not None:
-            sign_structure = [context, body_protected, sign_protected, external_aad, payload]
-        else:
-            sign_structure = [context, body_protected, external_aad, payload]
+        sign_structure = Signature1Message.sign_structure(context,
+                                                          body_protected,
+                                                          payload,
+                                                          external_aad,
+                                                          sign_protected)
 
         to_sign = dumps(sign_structure)
 
         signature = key.sign_deterministic(to_sign, hashlib.sha256)
 
         return signature
+
+    @classmethod
+    def sign_structure(cls, context: str,
+                       body_protected: bytes,
+                       payload: bytes,
+                       external_aad: bytes,
+                       sign_protected: bytes = None):
+
+        if sign_protected is not None:
+            sign_structure = [context, body_protected, sign_protected, external_aad, payload]
+        else:
+            sign_structure = [context, body_protected, external_aad, payload]
+
+        return sign_structure
+
+    @classmethod
+    def verify(cls, encoded, key: VerifyingKey, external_aad: bytes):
+        decoded = loads(encoded)
+
+        tag = decoded.tag
+        (protected, unprotected, payload, signature) = decoded.value
+
+        sign_structure = Signature1Message.sign_structure("Signature1", dumps(protected), payload, external_aad)
+        to_verify = dumps(sign_structure)
+
+        return key.verify(signature, to_verify, hashlib.sha256)
 
 
 class Encrypt0Message:
@@ -130,7 +158,7 @@ class Encrypt0Message:
         protected_header = {CoseHeader.ALG: Algorithms.AES_CCM_64_64_128}
         unprotected_header = {CoseHeader.IV: iv}
 
-        enc_structure = ["Encrypt0", dumps(protected_header), self.external_aad ]
+        enc_structure = Encrypt0Message.enc_structure(protected_header, self.external_aad)
         aad = dumps(enc_structure)
 
         # key = AESCCM.generate_key(bit_length=128)
@@ -147,6 +175,24 @@ class Encrypt0Message:
         ciphertext = cipher.encrypt(nonce=iv, data=self.plaintext, associated_data=aad)
 
         return ciphertext
+
+    @classmethod
+    def enc_structure(cls, protected, external_aad):
+        return ["Encrypt0", dumps(protected), external_aad]
+
+    @classmethod
+    def decrypt(cls, encoded: bytes, key: bytes, iv: bytes, external_aad: bytes):
+        decoded = loads(encoded)
+
+        tag = decoded.tag
+        (protected, unprotected, ciphertext) = decoded.value
+
+        aad = dumps(Encrypt0Message.enc_structure(protected, external_aad))
+
+        cipher = AESCCM(key, tag_length=8)
+        plaintext = cipher.decrypt(nonce=iv, data=ciphertext, associated_data=aad)
+
+        return plaintext
 
 
 def main():

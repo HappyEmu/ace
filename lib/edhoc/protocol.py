@@ -1,11 +1,12 @@
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.backends import default_backend
-from ecdsa import SigningKey, VerifyingKey, NIST256p
-from cbor2 import dumps
 import os
-from lib.cose import CoseKey
+
+from cbor2 import dumps
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from ecdsa import SigningKey, NIST256p
+from lib.edhoc.util import cose_to_key, key_to_cose
 
 backend = default_backend()
 
@@ -35,23 +36,6 @@ def message_digest(message: bytes) -> bytes:
     digest = hashes.Hash(hashes.SHA256(), backend=backend)
     digest.update(message)
     return digest.finalize()
-
-
-def cose_key(key) -> bytes:
-    params = key.public_numbers()
-
-    curve = params.curve.name
-    x = params.x
-    y = params.y
-
-    cbor = {
-        CoseKey.KTY: CoseKey.Type.EC2,
-        CoseKey.CRV: CoseKey.Curves.P_256,
-        CoseKey.X: x,
-        CoseKey.Y: y
-    }
-
-    return dumps(cbor)
 
 
 def transfer(src, dest, args):
@@ -98,13 +82,11 @@ def main():
     assert k_3_u == k_3_v
 
     # =========== #
-    
 
     print(ecdh_shared_secret_u.hex())
     print(ecdh_shared_secret_v.hex())
 
-    print(cose_key(e_u).hex())
-
+    print(key_to_cose(e_u).hex())
 
 
 if __name__ == '__main__':
