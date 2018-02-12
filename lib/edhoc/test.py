@@ -25,6 +25,7 @@ class Server:
 
         self.message1 = None
         self.message2 = None
+        self.message3 = None
 
     def on_receive(self, message):
         print("Server Received: ", message.hex())
@@ -68,7 +69,7 @@ class Server:
 
         # Encrypt message
         k_2 = derive_key(ecdh_shared_secret, 16, context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
-        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 16, other=aad2))
+        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 7, other=aad2))
 
         msg2.encrypt(key=k_2, iv=iv_2)
 
@@ -80,6 +81,7 @@ class Server:
         return msg2
 
     def on_msg_3(self, message):
+        self.message3 = message
         (tag, p_sess_id, enc_3) = loads(message)
 
         msg3 = Message3(p_sess_id)
@@ -88,13 +90,26 @@ class Server:
         k_3 = derive_key(self.session.shared_secret, 16,
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
         iv_3 = derive_key(self.session.shared_secret, 7,
-                          context_info=cose_kdf_context("IV-Generation", 16, other=aad3))
+                          context_info=cose_kdf_context("IV-Generation", 7, other=aad3))
 
         sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
 
         valid = Signature1Message.verify(sig_u, self.client_id, external_aad=aad3)
 
         return MessageOk()
+
+    def oscore_context(self):
+        exchange_hash = message_digest(message_digest(self.message1 + self.message2) + self.message3)
+
+        oscore_master_secret = derive_key(self.session.shared_secret, length=128 // 8,
+                                          context_info=cose_kdf_context("EDHOC OSCORE Master Secret", 128 // 8,
+                                                                        other=exchange_hash))
+        oscore_master_salt = derive_key(self.session.shared_secret, length=64 // 8,
+                                        context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 64 // 8,
+                                                                      other=exchange_hash))
+
+        print("OSCORE MASTER SECRET SERVER: ", oscore_master_secret.hex())
+        print("OSCORE MASTER SALT SERVER: ", oscore_master_salt.hex())
 
 
 class Client:
@@ -106,6 +121,7 @@ class Client:
         self.session = EdhocSession(session_id=None, shared_secret=None)
         self.message1 = None
         self.message2 = None
+        self.message3 = None
 
     def initiate_edhoc(self, send):
         session_id = os.urandom(2)
@@ -142,7 +158,7 @@ class Client:
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
         iv_2 = derive_key(ecdh_shared_secret,
                           length=7,
-                          context_info=cose_kdf_context("IV-Generation", 16, other=aad2))
+                          context_info=cose_kdf_context("IV-Generation", 7, other=aad2))
 
         print("Client AAD2 =", aad2.hex())
         print("Client K2 =", k_2.hex())
@@ -165,7 +181,7 @@ class Client:
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
         iv_3 = derive_key(ecdh_shared_secret,
                           length=7,
-                          context_info=cose_kdf_context("IV-Generation", 16, other=aad3))
+                          context_info=cose_kdf_context("IV-Generation", 7, other=aad3))
 
         msg3.encrypt(k_3, iv_3)
 
@@ -173,11 +189,25 @@ class Client:
         print("Client K3 =", k_3.hex())
         print("Client IV3 =", iv_3.hex())
 
+        self.message3 = msg3.serialize()
         (_, response) = send(msg3)
 
         print(response)
 
         return
+
+    def oscore_context(self):
+        exchange_hash = message_digest(message_digest(self.message1 + self.message2) + self.message3)
+
+        oscore_master_secret = derive_key(self.session.shared_secret, length=128 // 8,
+                                          context_info=cose_kdf_context("EDHOC OSCORE Master Secret", 128 // 8,
+                                                                        other=exchange_hash))
+        oscore_master_salt = derive_key(self.session.shared_secret, length=64 // 8,
+                                        context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 64 // 8,
+                                                                      other=exchange_hash))
+
+        print("OSCORE MASTER SECRET CLIENT: ", oscore_master_secret.hex())
+        print("OSCORE MASTER SALT CLIENT: ", oscore_master_salt.hex())
 
 
 def main():
@@ -198,6 +228,9 @@ def main():
 
     client.initiate_edhoc(send)
     client.continue_edhoc(send)
+
+    client.oscore_context()
+    server.oscore_context()
 
     print("Done")
 

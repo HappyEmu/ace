@@ -161,7 +161,6 @@ class Encrypt0Message:
         enc_structure = Encrypt0Message.enc_structure(protected_header, self.external_aad)
         aad = dumps(enc_structure)
 
-        # key = AESCCM.generate_key(bit_length=128)
         ciphertext = self._encrypt(key, iv, aad=aad)
 
         cose_encrypt0 = [protected_header, unprotected_header, ciphertext]
@@ -196,7 +195,7 @@ class Encrypt0Message:
 
 
 def main():
-    plaintext = b"This is the content."
+    plaintext = b"This is the contentasvasmndbfvasmnbdfvasnbdvfasmdfasdmfnbsdvf"
 
     iv = bytes.fromhex("89F52F65A1C580")
     key = bytes.fromhex("849B57219DAE48DE646D07DBB533566E")
