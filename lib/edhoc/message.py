@@ -66,8 +66,8 @@ class Message2(EdhocMessage):
         self._cose_sig_v = None
         self._cose_enc_2 = None
 
-    def sign(self, key, hashfunc, message_1):
-        self._aad_2 = self.aad_2(hashfunc, message_1)
+    def sign(self, key, aad: bytes):
+        self._aad_2 = aad
         self._cose_sig_v = self.cose_sig_v(key)
 
     def encrypt(self, key, iv):
@@ -114,11 +114,12 @@ class Message3(EdhocMessage):
         self._cose_sig_u = None
         self._cose_enc_3 = None
 
-    def sign(self):
-        pass
+    def sign(self, key, aad: bytes):
+        self._aad_3 = aad
+        self._cose_sig_u = self.cose_sig_u(key)
 
-    def encrypt(self):
-        pass
+    def encrypt(self, key, iv):
+        self._cose_enc_3 = self.cose_enc_3(key, iv)
 
     @property
     def content(self):
@@ -128,11 +129,17 @@ class Message3(EdhocMessage):
     def data_3(self):
         return [self.tag, self.peer_session_id]
 
-    def aad_3(self):
-        pass
+    def aad_3(self, hashfunc, message1: bytes, message2: bytes):
+        return hashfunc(hashfunc(message1 + message2) + c.dumps(self.data_3))
 
-    def cose_enc_3(self):
-        pass
+    def cose_enc_3(self, key, iv):
+        return Encrypt0Message(plaintext=self._cose_sig_u, external_aad=self._aad_3).serialize(iv, key)
 
-    def cose_sig_u(self):
-        pass
+    def cose_sig_u(self, key):
+        return Signature1Message(payload=b'', external_aad=self._aad_3).serialize_signed(key)
+
+
+class MessageOk:
+
+    def serialize(self):
+        return c.dumps(["OK"])

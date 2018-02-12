@@ -1,6 +1,6 @@
 from ecdsa import SigningKey, VerifyingKey, NIST384p, NIST256p
 from cryptography.hazmat.primitives.asymmetric import ec
-from lib.edhoc.message import Message1, Message2, EDHOC_MSG_1, EDHOC_MSG_3, Message3
+from lib.edhoc.message import Message1, Message2, EDHOC_MSG_1, EDHOC_MSG_3, Message3, MessageOk
 from lib.edhoc.protocol import backend, message_digest, derive_key, cose_kdf_context
 from lib.edhoc.util import cose_to_key
 from lib.cose import Encrypt0Message, Signature1Message
@@ -23,6 +23,9 @@ class Server:
         self.client_id = client_id
         self.session = EdhocSession(session_id=None, shared_secret=None)
 
+        self.message1 = None
+        self.message2 = None
+
     def on_receive(self, message):
         print("Server Received: ", message.hex())
 
@@ -34,6 +37,7 @@ class Server:
             return self.on_msg_3(message)
 
     def on_msg_1(self, message):
+        self.message1 = message
         msg = Message1.deserialize(message)
 
         session_id = os.urandom(2)
@@ -52,27 +56,45 @@ class Server:
         self.session.public_key = public_session_key
         self.session.shared_secret = ecdh_shared_secret
 
-        response = Message2(session_id=peer_session_id,
-                            peer_session_id=session_id,
-                            peer_nonce=nonce,
-                            peer_ephemeral_key=public_session_key)
+        msg2 = Message2(session_id=peer_session_id,
+                        peer_session_id=session_id,
+                        peer_nonce=nonce,
+                        peer_ephemeral_key=public_session_key)
+
+        aad2 = msg2.aad_2(message_digest, self.message1)
 
         # Sign message
-        response.sign(self.sk, message_digest, message)
+        msg2.sign(self.sk, aad=aad2)
 
         # Encrypt message
-        k_2 = derive_key(ecdh_shared_secret, 16, context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=b'asdf'))
-        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 16, other=b'asdf'))
-        response.encrypt(key=k_2, iv=iv_2)
+        k_2 = derive_key(ecdh_shared_secret, 16, context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
+        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 16, other=aad2))
 
-        print("Server AAD2 =", response.aad_2(message_digest, message).hex())
+        msg2.encrypt(key=k_2, iv=iv_2)
+
+        print("Server AAD2 =", aad2.hex())
         print("Server K2 =", k_2.hex())
         print("Server IV2 =", iv_2.hex())
 
-        return response
+        self.message2 = msg2.serialize()
+        return msg2
 
     def on_msg_3(self, message):
-        pass
+        (tag, p_sess_id, enc_3) = loads(message)
+
+        msg3 = Message3(p_sess_id)
+        aad3 = msg3.aad_3(message_digest, self.message1, self.message2)
+
+        k_3 = derive_key(self.session.shared_secret, 16,
+                         context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
+        iv_3 = derive_key(self.session.shared_secret, 7,
+                          context_info=cose_kdf_context("IV-Generation", 16, other=aad3))
+
+        sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
+
+        valid = Signature1Message.verify(sig_u, self.client_id, external_aad=aad3)
+
+        return MessageOk()
 
 
 class Client:
@@ -106,15 +128,21 @@ class Client:
     def continue_edhoc(self, send):
         (tag, sess_id, p_sess_id, p_nonce, p_eph_key, enc_2) = loads(self.message2)
 
+        # Compute EDHOC shared secret
         p_eph_key = cose_to_key(p_eph_key)
         ecdh_shared_secret = self.session.private_key.exchange(ec.ECDH(), p_eph_key)
         self.session.shared_secret = ecdh_shared_secret
 
-        k_2 = derive_key(ecdh_shared_secret, 16, context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=b'asdf'))
-        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 16, other=b'asdf'))
-
+        # Derive encryption key
         msg2 = Message2(sess_id, p_sess_id, p_nonce, p_eph_key)
         aad2 = msg2.aad_2(message_digest, self.message1)
+
+        k_2 = derive_key(ecdh_shared_secret,
+                         length=16,
+                         context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
+        iv_2 = derive_key(ecdh_shared_secret,
+                          length=7,
+                          context_info=cose_kdf_context("IV-Generation", 16, other=aad2))
 
         print("Client AAD2 =", aad2.hex())
         print("Client K2 =", k_2.hex())
@@ -126,7 +154,29 @@ class Client:
 
         assert valid
 
-        msg3 = Message3(se)
+        # Compute MSG3
+        msg3 = Message3(peer_session_id=p_sess_id)
+        aad3 = msg3.aad_3(message_digest, self.message1, self.message2)
+
+        msg3.sign(self.sk, aad=aad3)
+
+        k_3 = derive_key(ecdh_shared_secret,
+                         length=16,
+                         context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
+        iv_3 = derive_key(ecdh_shared_secret,
+                          length=7,
+                          context_info=cose_kdf_context("IV-Generation", 16, other=aad3))
+
+        msg3.encrypt(k_3, iv_3)
+
+        print("Client AAD3 =", msg3._aad_3.hex())
+        print("Client K3 =", k_3.hex())
+        print("Client IV3 =", iv_3.hex())
+
+        (_, response) = send(msg3)
+
+        print(response)
+
         return
 
 
