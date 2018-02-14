@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 import cbor2 as c
 
 from lib.cose import Signature1Message, Encrypt0Message
+from lib.cose.cose import Header, Algorithm
 from lib.edhoc.util import key_to_cose, cose_to_key
 
 EDHOC_MSG_1 = 1
@@ -89,7 +90,13 @@ class Message2(EdhocMessage):
         return Encrypt0Message(plaintext=self._cose_sig_v, external_aad=self._aad_2).serialize(iv, key)
 
     def cose_sig_v(self, key):
-        return Signature1Message(payload=b'', external_aad=self._aad_2).serialize_signed(key)
+        protected = c.dumps({ Header.ALG: Algorithm.ES256 })
+        unprotected = { Header.KID: b'AsymmetricECDSA256' }
+
+        return Signature1Message(payload=b'',
+                                 external_aad=self._aad_2,
+                                 protected_header=protected,
+                                 unprotected_header=unprotected).serialize_signed(key)
 
     @classmethod
     def deserialize(cls, encoded: bytes):
@@ -136,7 +143,13 @@ class Message3(EdhocMessage):
         return Encrypt0Message(plaintext=self._cose_sig_u, external_aad=self._aad_3).serialize(iv, key)
 
     def cose_sig_u(self, key):
-        return Signature1Message(payload=b'', external_aad=self._aad_3).serialize_signed(key)
+        protected = c.dumps({ Header.ALG: Algorithm.ES256 })
+        unprotected = { Header.KID: b'AsymmetricECDSA256' }
+
+        return Signature1Message(payload=b'',
+                                 external_aad=self._aad_3,
+                                 protected_header=protected,
+                                 unprotected_header=unprotected).serialize_signed(key)
 
 
 class MessageOk:

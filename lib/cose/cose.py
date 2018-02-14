@@ -1,104 +1,45 @@
 import hashlib
-from typing import Union
 
-from cbor2 import loads, dumps, CBORTag as Tag
-from ecdsa import SigningKey, VerifyingKey, NIST192p, NIST256p
-
+from cbor2 import loads, dumps, CBORTag
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+from ecdsa import SigningKey, VerifyingKey
 
-
-class MessageTypes:
-    """
-    COSE Message Type Tags
-    """
-    COSE_SIGN     = 98
-    COSE_SIGN1    = 18
-    COSE_ENCRYPT  = 96
-    COSE_ENCRYPT0 = 16
-    COSE_MAC      = 97
-    COSE_MAC0     = 17
-
-
-class CoseHeader:
-    """
-    COSE Common Header Parameters: Name - Label
-    """
-    ALG               = 1   # int / tstr
-    CRIT              = 2
-    CONTENT_TYPE      = 3   # tstr / uint
-    KID               = 4   # bstr
-    IV                = 5   # bstr
-    PARTIAL_IV        = 6   # bstr
-    COUNTER_SIGNATURE = 7   # COSE_Signature
-
-
-class Algorithms:
-    ES256 = -7
-    ES384 = -35
-    ES512 = -36
-    AES_CCM_16_64_128 = 10
-    AES_CCM_64_64_128 = 12
-
-
-class CoseKey:
-    KTY = 1             # tstr
-    KID = 2             # bstr
-    ALG = 3             # tstr / int
-    KEY_OPS = 4         # [(tstr/int)]
-    BASE_IV = 5         # bstr
-
-    CRV = -1
-    X = -2
-    Y = -3
-    D = -4
-
-    class Op:
-        SIGN = 1
-        VERIFY = 2
-        ENCRYPT = 3
-        DECRYPT = 4
-
-    class Type:
-        OKP = 1
-        EC2 = 2
-        SYMMETRIC = 4
-
-    class Curves:
-        P_256 = 1
-        P_384 = 2
-        P_521 = 3
-        X25519 = 4
-        X448 = 5
-        Ed25519 = 6
-        Ed449 = 7
-
+from lib.cose.constants import Header, Tag, Algorithm
 
 signature_algorithms = ['ES256', 'ES384', 'ES521']
 
 
+class SignatureVerificationFailed(Exception):
+    pass
+
+
 class Signature1Message:
 
-    def __init__(self, payload: bytes=b'', external_aad: bytes=b''):
+    def __init__(self,
+                 payload: bytes=b'',
+                 external_aad: bytes=b'',
+                 protected_header: bytes=None,
+                 unprotected_header: dict=None):
+
         self.payload = payload
         self.external_aad = external_aad
+        self.protected_header = b'' if protected_header is None else protected_header
+        self.unprotected_header = unprotected_header
 
     def serialize_signed(self, key: SigningKey) -> bytes:
-        protected_header = {CoseHeader.ALG: Algorithms.ES256}
-        unprotected_header = {CoseHeader.KID: b'AsymmetricECDSA256'}
-
         signature = Signature1Message.create_signature(context="Signature1",
-                                                       body_protected=dumps(protected_header),
+                                                       body_protected=self.protected_header,
                                                        payload=self.payload,
                                                        external_aad=self.external_aad,
                                                        key=key)
         cose_sign1 = [
-            protected_header,
-            unprotected_header,
+            self.protected_header,
+            self.unprotected_header,
             self.payload,
             signature,
         ]
 
-        return dumps(Tag(MessageTypes.COSE_SIGN1, cose_sign1))
+        return dumps(CBORTag(Tag.COSE_SIGN1, cose_sign1))
 
     @classmethod
     def create_signature(cls,
@@ -142,10 +83,13 @@ class Signature1Message:
         tag = decoded.tag
         (protected, unprotected, payload, signature) = decoded.value
 
-        sign_structure = Signature1Message.sign_structure("Signature1", dumps(protected), payload, external_aad)
+        sign_structure = Signature1Message.sign_structure("Signature1", protected, payload, external_aad)
         to_verify = dumps(sign_structure)
 
-        return key.verify(signature, to_verify, hashlib.sha256)
+        if not key.verify(signature, to_verify, hashlib.sha256):
+            raise SignatureVerificationFailed()
+
+        return payload
 
 
 class Encrypt0Message:
@@ -155,8 +99,8 @@ class Encrypt0Message:
         self.external_aad = external_aad
 
     def serialize(self, iv: bytes, key: bytes):
-        protected_header = {CoseHeader.ALG: Algorithms.AES_CCM_64_64_128}
-        unprotected_header = {CoseHeader.IV: iv}
+        protected_header = { Header.ALG: Algorithm.AES_CCM_64_64_128 }
+        unprotected_header = { Header.IV: iv }
 
         enc_structure = Encrypt0Message.enc_structure(protected_header, self.external_aad)
         aad = dumps(enc_structure)
@@ -165,7 +109,7 @@ class Encrypt0Message:
 
         cose_encrypt0 = [protected_header, unprotected_header, ciphertext]
 
-        return dumps(Tag(MessageTypes.COSE_ENCRYPT0, cose_encrypt0))
+        return dumps(CBORTag(Tag.COSE_ENCRYPT0, cose_encrypt0))
 
 
     # AES-CCM-64-64-128 = AES-CCM mode 128-bit key, 64-bit tag, 7-byte nonce
