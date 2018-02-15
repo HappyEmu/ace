@@ -139,7 +139,7 @@ class Client:
 
         edhoc_client.initiate_edhoc(send)
         edhoc_client.continue_edhoc(send)
-        edhoc_client.oscore_context()
+        edhoc_client.print_oscore_context()
 
         response = requests.get(url)
 
@@ -147,7 +147,9 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        return loads(response.content)
+        decrypted_response = edhoc_client.decrypt(response.content)
+
+        return loads(decrypted_response)
 
 
 def main():

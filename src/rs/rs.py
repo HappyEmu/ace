@@ -65,16 +65,17 @@ class ResourceServer(HttpServer):
     async def get_temperature(self, request):
         token = self.token_cache.get_token()
 
-        self.edhoc_server.oscore_context()
+        self.edhoc_server.print_oscore_context()
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':
             return web.Response(status=401, body=dumps({'error': 'not authorized'}))
 
-        # TODO: Use OSCORE to encrypt and authenticate with PoP key in token
-
         temperature = random.randint(8, 42)
-        return web.Response(status=200, body=dumps({'temperature': f"{temperature}C"}))
+
+        response = self.edhoc_server.encrypt(dumps({'temperature': f"{temperature}C"}))
+
+        return web.Response(status=200, body=response)
 
     async def get_audience(self, request):
         return self.audience
