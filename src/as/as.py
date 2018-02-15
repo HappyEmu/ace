@@ -14,11 +14,14 @@ from key_registry import KeyRegistry
 from token_registry import TokenRegistry
 from lib.access_token import AccessToken
 
+RS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d03010703420004f2716524e7a"
+                                                    "5bf4e23543a37a5e7bdd3547a9017f12f7fcf8aeadb0269aeb2c8a45dfb5fde3e"
+                                                    "ee8c0a9a0479e694184f0aa2201d5f5bfa4f9df8338367f60648"))
+
 
 class AuthorizationServer(HttpServer):
 
-    def __init__(self, crypto_key: str, signature_key: SigningKey):
-        self.crypto_key = crypto_key
+    def __init__(self, signature_key: SigningKey):
         self.signature_key = signature_key
         self.client_registry = ClientRegistry()
         self.client_registry.register_client(client_id="ace_client_1",
@@ -84,7 +87,8 @@ class AuthorizationServer(HttpServer):
         response = {
             CK.ACCESS_TOKEN: token_sent,
             CK.TOKEN_TYPE: 'pop',
-            CK.PROFILE: 'coap_oscore'
+            CK.PROFILE: 'coap_oscore',
+            CK.RS_CNF: CoseKey(RS_PUBLIC_KEY, b'rs_pub_key', CoseKey.Type.ECDSA).encode()
         }
 
         return web.Response(status=200, body=dumps(response))
@@ -161,12 +165,11 @@ class AuthorizationServer(HttpServer):
 
 def main():
     sk = SigningKey.from_der(bytes.fromhex("307702010104203908b414f1a1f589e8de11a60cfc22fdff0182f093bf8cc40554087d"
-                                                "7557cc43a00a06082a8648ce3d030107a144034200045aeec31f9e64aad45aba2d365e"
-                                                "71e84dee0da331badab9118a2531501fd9861d027c9977ca32d544e6342676ef00fa43"
-                                                "4b3aaed99f4823750517ca3390374753"))
+                                           "7557cc43a00a06082a8648ce3d030107a144034200045aeec31f9e64aad45aba2d365e"
+                                           "71e84dee0da331badab9118a2531501fd9861d027c9977ca32d544e6342676ef00fa43"
+                                           "4b3aaed99f4823750517ca3390374753"))
 
-    server = AuthorizationServer(crypto_key='123456789',
-                                 signature_key=sk)
+    server = AuthorizationServer(signature_key=sk)
     server.start(port=8080)
 
 

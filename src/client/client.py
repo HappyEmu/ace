@@ -1,11 +1,13 @@
 import requests
 import os
 
-from ecdsa import SigningKey, NIST256p
+from ecdsa import SigningKey, VerifyingKey, NIST256p
 from cbor2 import dumps, loads
 from lib.cbor.constants import Keys as CK, GrantTypes
 from lib.cose.constants import Key as Cose
 from lib.cose import CoseKey
+
+from lib.edhoc import Client as EdhocClient
 
 AS_URL = 'http://localhost:8080'
 RS_URL = 'http://localhost:8081'
@@ -21,6 +23,7 @@ class AceSession:
         self.public_key = public_key
         self.key_id = key_id
         self.token = None
+        self.rs_public_key = None
 
     def bind_token(self, token: str):
         """
@@ -29,6 +32,9 @@ class AceSession:
         """
 
         self.token = token
+
+    def bind_rs_public_key(self, public_key: VerifyingKey):
+        self.rs_public_key = public_key
 
     @classmethod
     def create(cls):
@@ -49,7 +55,7 @@ class AceSession:
         :return: (private_key, public_key) pair
         """
 
-        key_id = os.urandom(1).hex()
+        key_id = os.urandom(2).hex()
 
         private_key = SigningKey.generate(curve=NIST256p)
         public_key = private_key.get_verifying_key()
@@ -96,9 +102,13 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        token = loads(response.content)[CK.ACCESS_TOKEN]
+        response_content = loads(response.content)
+
+        token = response_content[CK.ACCESS_TOKEN]
+        rs_pub_key = CoseKey.from_cose(response_content[CK.RS_CNF])
 
         self.session.bind_token(token)
+        self.session.bind_rs_public_key(rs_pub_key.key)
 
     def upload_access_token(self, url):
         """
@@ -118,6 +128,19 @@ class Client:
         :param url: The URL to the protected resource
         :return: Response from the protected resource
         """
+        edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key)
+
+        def send(message):
+            sent = message.serialize()
+
+            received = requests.post(f'{RS_URL}/.well-known/edhoc', data=sent)
+
+            return sent, received.content
+
+        edhoc_client.initiate_edhoc(send)
+        edhoc_client.continue_edhoc(send)
+        edhoc_client.oscore_context()
+
         response = requests.get(url)
 
         if response.status_code != 200:
