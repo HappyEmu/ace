@@ -4,7 +4,7 @@ import cbor2 as c
 
 from lib.cose import Signature1Message, Encrypt0Message
 from lib.cose.cose import Header, Algorithm
-from lib.edhoc.util import key_to_cose, cose_to_key
+from lib.edhoc.util import ecdh_key_to_cose, ecdh_cose_to_key
 
 EDHOC_MSG_1 = 1
 EDHOC_MSG_2 = 2
@@ -39,7 +39,10 @@ class Message1(EdhocMessage):
 
     @property
     def content(self):
-        return [self.tag, self.session_id, self.nonce, key_to_cose(self.ephemeral_key)]
+        return [self.tag,
+                self.session_id,
+                self.nonce,
+                ecdh_key_to_cose(self.ephemeral_key, encode=True)]
 
     @classmethod
     def deserialize(cls, encoded: bytes):
@@ -50,7 +53,7 @@ class Message1(EdhocMessage):
 
         return Message1(session_id=session_id,
                         nonce=nonce,
-                        ephemeral_key=cose_to_key(cose_key))
+                        ephemeral_key=ecdh_cose_to_key(cose_key))
 
 
 class Message2(EdhocMessage):
@@ -81,7 +84,11 @@ class Message2(EdhocMessage):
 
     @property
     def data_2(self):
-        return [self.tag, self.session_id, self.peer_session_id, self.peer_nonce, key_to_cose(self.peer_key)]
+        return [self.tag,
+                self.session_id,
+                self.peer_session_id,
+                self.peer_nonce,
+                ecdh_key_to_cose(self.peer_key, encode=True)]
 
     def aad_2(self, hashfunc, message_1: bytes):
         return hashfunc(message_1 + c.dumps(self.data_2))

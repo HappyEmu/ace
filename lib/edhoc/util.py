@@ -35,7 +35,7 @@ _ecdsa_names = {
 }
 
 
-def ecdh_key_to_cose(key, encode=False):
+def ecdh_key_to_cose(key, kid: bytes = None, encode=True):
     params = key.public_numbers()
 
     curve = _ecdh_names[params.curve.name]
@@ -48,6 +48,9 @@ def ecdh_key_to_cose(key, encode=False):
         CoseKey.X: x,
         CoseKey.Y: y
     }
+
+    if kid is not None:
+        cbor.update({CoseKey.KID: kid})
 
     if encode:
         return dumps(cbor)
@@ -70,7 +73,7 @@ def ecdh_cose_to_key(ckey):
     return key
 
 
-def ecdsa_key_to_cose(key: VerifyingKey, encode=False):
+def ecdsa_key_to_cose(key: VerifyingKey, kid: bytes = None, encode=True):
     curve = _ecdsa_names[key.curve.name]
     x = key.pubkey.point.x()
     y = key.pubkey.point.y()
@@ -81,6 +84,9 @@ def ecdsa_key_to_cose(key: VerifyingKey, encode=False):
         CoseKey.X: x,
         CoseKey.Y: y
     }
+
+    if kid is not None:
+        cbor.update({CoseKey.KID: kid})
 
     if encode:
         return dumps(cbor)

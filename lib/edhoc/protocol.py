@@ -9,7 +9,7 @@ from ecdsa import SigningKey, VerifyingKey, NIST256p
 from cbor2 import loads, dumps
 
 from lib.cose.cose import SignatureVerificationFailed
-from lib.edhoc.util import cose_to_key, key_to_cose
+from lib.edhoc.util import ecdh_cose_to_key, ecdh_key_to_cose
 from lib.edhoc.messages import Message1, Message2, Message3, MessageOk, EDHOC_MSG_1, EDHOC_MSG_2, EDHOC_MSG_3
 from lib.cose import Encrypt0Message, Signature1Message
 
@@ -133,7 +133,7 @@ class Server:
 
         sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
 
-        valid = Signature1Message.verify(sig_u, self.client_id, external_aad=aad3)
+        payload = Signature1Message.verify(sig_u, self.client_id, external_aad=aad3)
 
         return MessageOk()
 
@@ -184,7 +184,7 @@ class Client:
         (tag, sess_id, p_sess_id, p_nonce, p_eph_key, enc_2) = loads(self.message2)
 
         # Compute EDHOC shared secret
-        p_eph_key = cose_to_key(p_eph_key)
+        p_eph_key = ecdh_cose_to_key(p_eph_key)
         ecdh_shared_secret = self.session.private_key.exchange(ec.ECDH(), p_eph_key)
         self.session.shared_secret = ecdh_shared_secret
 
