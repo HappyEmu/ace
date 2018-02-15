@@ -4,7 +4,7 @@ from lib.cose.constants import Header, Key, Algorithm
 from lib.cbor.constants import Keys as CK
 from lib.edhoc.util import ecdsa_key_to_cose
 
-from cbor2 import dumps
+from cbor2 import dumps, loads
 
 
 def encode(claims: dict, key: SigningKey):
@@ -19,7 +19,7 @@ def encode(claims: dict, key: SigningKey):
 
 
 def decode(encoded, key: VerifyingKey):
-    return Signature1Message.verify(encoded, key, external_aad=b'')
+    return loads(Signature1Message.verify(encoded, key, external_aad=b''))
 
 
 def main():

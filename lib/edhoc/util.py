@@ -58,7 +58,7 @@ def ecdh_key_to_cose(key, kid: bytes = None, encode=True):
         return cbor
 
 
-def ecdh_cose_to_key(ckey):
+def ecdh_cose_to_key(ckey: bytes):
     decoded = loads(ckey)
 
     kty = decoded[CoseKey.KTY]
@@ -94,7 +94,7 @@ def ecdsa_key_to_cose(key: VerifyingKey, kid: bytes = None, encode=True):
         return cbor
 
 
-def ecdsa_cose_to_key(encoded) -> VerifyingKey:
+def ecdsa_cose_to_key(encoded: bytes) -> VerifyingKey:
     decoded = loads(encoded)
 
     kty = decoded[CoseKey.KTY]

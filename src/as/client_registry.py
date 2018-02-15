@@ -18,7 +18,7 @@ class ClientRegistry(object):
         """
         return self._registered_clients
 
-    def register_client(self, client_id: str, client_secret: str, client: Client = None):
+    def register_client(self, client_id: str, client_secret: bytes, client: Client = None):
         """
         Register a client
 
@@ -40,7 +40,7 @@ class ClientRegistry(object):
         """
         return client_id in [c.client_id for c in self.registered_clients]
 
-    def check_secret(self, client_id: str, client_secret: str):
+    def check_secret(self, client_id: str, client_secret: bytes):
         """
         :param client_id: The client's ID
         :param client_secret: The clients's secret to be tested

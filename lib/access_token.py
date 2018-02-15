@@ -1,9 +1,10 @@
-import jwt
 import os
 
-from jwcrypto import jwk
 from lib.cbor.constants import Keys as CK
-from jwcrypto.common import json_decode
+from lib.cose.constants import Key
+from lib.cose import CoseKey
+import lib.cwt as cwt
+from ecdsa import SigningKey
 
 
 class AccessToken:
@@ -13,16 +14,16 @@ class AccessToken:
         self._claims = claims
         self._bound_key = None
 
-    def bind_key(self, key: jwk.JWK):
+    def bind_key(self, key: CoseKey):
         self._bound_key = key
 
         # Add CNF Claim to bind key to this access token
         self._claims.update({
-            CK.CNF: {'COSE_KEY': json_decode(key.export())}
+            CK.CNF: { Key.COSE_KEY: key.encode()}
         })
 
-    def sign_and_export_self_contained(self, key) -> str:
-        return jwt.encode(payload=self._claims, key=key, algorithm='HS256').decode('utf-8')
+    def sign_and_export_self_contained(self, key: SigningKey) -> str:
+        return cwt.encode(self._claims, key)
 
     def export_referential(self):
         return self.reference
@@ -52,7 +53,7 @@ class AccessToken:
         return self._claims[CK.IAT]
 
     @property
-    def bound_key(self) -> jwk.JWK:
+    def bound_key(self) -> CoseKey:
         return self._bound_key
 
     @property

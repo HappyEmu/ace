@@ -1,18 +1,22 @@
 import random
-import jwt
 import requests
 
 from aiohttp import web
-from jwcrypto import jwk
 from cbor2 import dumps, loads
+from ecdsa import VerifyingKey
 
+import lib.cwt as cwt
 from lib.cbor.constants import Keys as CK
+from lib.cose.constants import Key as Cose
+from lib.cose.cose import SignatureVerificationFailed
+from lib.cose import CoseKey
 from lib.http_server import HttpServer
-from lib.cbor.cbor import json_to_cbor
 from token_cache import TokenCache
 
-AS_CRYPTO_KEY = '123456789'
-AS_SIGNATURE_KEY = '723984572'
+AS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200045aeec31f9e6"
+                                                    "4aad45aba2d365e71e84dee0da331badab9118a2531501fd9861d027c9977ca32"
+                                                    "d544e6342676ef00fa434b3aaed99f4823750517ca3390374753"))
+
 AS_URL = 'http://localhost:8080'
 
 
@@ -60,19 +64,15 @@ class ResourceServer(HttpServer):
     # POST /authz_info
     async def authz_info(self, request):
         # Extract access token
-        access_token = loads(await request.content.read())
+        access_token = await request.content.read()
 
         # introspect_payload = self.introspect(access_token)
 
-        # Verify if valid JWT from AS
+        # Verify if valid CWT from AS
         try:
-            decoded = json_to_cbor(jwt.decode(access_token,
-                                              AS_SIGNATURE_KEY,
-                                              algorithms=['HS256'],
-                                              audience=None))
-        except (jwt.DecodeError,
-                jwt.InvalidAudienceError,
-                jwt.MissingRequiredClaimError,) as err:
+            decoded = cwt.decode(access_token, key=AS_PUBLIC_KEY)
+
+        except SignatureVerificationFailed as err:
             return web.Response(status=401, body=dumps({'error': str(err)}))
 
         # Check if audience claim in token matches audience identifier of this resource server
@@ -80,7 +80,7 @@ class ResourceServer(HttpServer):
             return web.Response(status=403, body=dumps({'error': 'Audience mismatch'}))
 
         # Extract PoP Key
-        pop_key = jwk.JWK(**decoded[CK.CNF]['COSE_KEY'])
+        pop_key = CoseKey.from_cose(decoded[CK.CNF][Cose.COSE_KEY])
 
         self.token_cache.add_token(token=decoded, pop_key=pop_key)
 

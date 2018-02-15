@@ -2,11 +2,12 @@ import time
 import os
 
 from aiohttp import web
-from jwcrypto import jwk, jws
-from jwcrypto.common import json_decode
 from cbor2 import dumps, loads
+from ecdsa import VerifyingKey, SigningKey, NIST256p
 
 from lib.cbor.constants import Keys as CK
+from lib.cose.constants import Key as Cose
+from lib.cose import CoseKey
 from lib.http_server import HttpServer
 from client_registry import ClientRegistry
 from key_registry import KeyRegistry
@@ -14,18 +15,14 @@ from token_registry import TokenRegistry
 from lib.access_token import AccessToken
 
 
-def key_to_dict(key: jwk.JWK) -> dict:
-    return json_decode(key.export())
-
-
 class AuthorizationServer(HttpServer):
 
-    def __init__(self, crypto_key: str, signature_key: str):
+    def __init__(self, crypto_key: str, signature_key: SigningKey):
         self.crypto_key = crypto_key
         self.signature_key = signature_key
         self.client_registry = ClientRegistry()
         self.client_registry.register_client(client_id="ace_client_1",
-                                             client_secret="ace_client_1_secret_123456")
+                                             client_secret=b"ace_client_1_secret_123456")
         self.key_registry = KeyRegistry()
         self.token_registry = TokenRegistry()
 
@@ -69,7 +66,7 @@ class AuthorizationServer(HttpServer):
             return web.Response(status=400, body=dumps({'error': 'unauthorized_client'}))
 
         # Extract Clients Public PoP key
-        client_pop_key = jwk.JWK(**params[CK.CNF]['COSE_KEY'])
+        client_pop_key = CoseKey.from_cose(params[CK.CNF][Cose.COSE_KEY])
 
         # Extract client claims scope and audience
         client_claims = {k: params[k] for k in (CK.SCOPE, CK.AUD)}
@@ -92,7 +89,7 @@ class AuthorizationServer(HttpServer):
 
         return web.Response(status=200, body=dumps(response))
 
-    def _bind_token(self, client_claims: dict, session_key: jwk.JWK) -> AccessToken:
+    def _bind_token(self, client_claims: dict, session_key: VerifyingKey) -> AccessToken:
         """
         Bind session_key to access_token
         :param client_claims: client claims to be included in the access token
@@ -155,7 +152,7 @@ class AuthorizationServer(HttpServer):
             CK.EXP:   access_context.expires,
             CK.IAT:   access_context.issued_at,
             CK.CNF: {
-                'COSE_KEY': key_to_dict(access_context.bound_key)
+                Cose.COSE_KEY: access_context.bound_key.encode()
             }
         }
 
@@ -163,8 +160,13 @@ class AuthorizationServer(HttpServer):
 
 
 def main():
+    sk = SigningKey.from_der(bytes.fromhex("307702010104203908b414f1a1f589e8de11a60cfc22fdff0182f093bf8cc40554087d"
+                                                "7557cc43a00a06082a8648ce3d030107a144034200045aeec31f9e64aad45aba2d365e"
+                                                "71e84dee0da331badab9118a2531501fd9861d027c9977ca32d544e6342676ef00fa43"
+                                                "4b3aaed99f4823750517ca3390374753"))
+
     server = AuthorizationServer(crypto_key='123456789',
-                                 signature_key='723984572')
+                                 signature_key=sk)
     server.start(port=8080)
 
 

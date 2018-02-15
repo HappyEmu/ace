@@ -1,10 +1,11 @@
 import requests
 import os
 
-from jwcrypto import jwk
-from jwcrypto.common import json_decode
+from ecdsa import SigningKey, NIST256p
 from cbor2 import dumps, loads
 from lib.cbor.constants import Keys as CK, GrantTypes
+from lib.cose.constants import Key as Cose
+from lib.cose import CoseKey
 
 AS_URL = 'http://localhost:8080'
 RS_URL = 'http://localhost:8081'
@@ -14,10 +15,11 @@ class AceSession:
 
     session_id = 0
 
-    def __init__(self, session_id, private_key, public_key, ):
+    def __init__(self, session_id, private_key, public_key, key_id):
         self.session_id = session_id
         self.private_key = private_key
         self.public_key = public_key
+        self.key_id = key_id
         self.token = None
 
     def bind_token(self, token: str):
@@ -30,14 +32,15 @@ class AceSession:
 
     @classmethod
     def create(cls):
-        (prv_key, pub_key) = AceSession.generate_session_key()
+        (key_id, prv_key, pub_key) = AceSession.generate_session_key()
 
         session_id = AceSession.session_id
         AceSession.session_id += 1
 
         return AceSession(session_id=session_id,
                           private_key=prv_key,
-                          public_key=pub_key)
+                          public_key=pub_key,
+                          key_id=key_id)
 
     @staticmethod
     def generate_session_key():
@@ -46,17 +49,17 @@ class AceSession:
         :return: (private_key, public_key) pair
         """
 
-        key_id = os.urandom(4).hex()
+        key_id = os.urandom(1).hex()
 
-        private_key = jwk.JWK.generate(kty='EC', size=160)
-        public_key = jwk.JWK(kid=key_id, **json_decode(private_key.export_public()))
+        private_key = SigningKey.generate(curve=NIST256p)
+        public_key = private_key.get_verifying_key()
 
-        return private_key, public_key
+        return key_id, private_key, public_key
 
 
 class Client:
 
-    def __init__(self, client_id, client_secret):
+    def __init__(self, client_id: str, client_secret: bytes):
         self.client_id = client_id
         self.client_secret = client_secret
         self.session = None
@@ -84,7 +87,7 @@ class Client:
             CK.CLIENT_SECRET: self.client_secret,
             CK.SCOPE:         'read_temperature',
             CK.AUD:           'tempSensor0',
-            CK.CNF:           { 'COSE_KEY': json_decode(pop_key.export())}
+            CK.CNF:           { Cose.COSE_KEY: CoseKey(pop_key, self.session.key_id, CoseKey.Type.ECDSA).encode() }
         }
 
         response = requests.post(url=f"{url}/token", data=dumps(payload))
@@ -103,7 +106,7 @@ class Client:
         :param url: The url of the resource server
         """
 
-        response = requests.post(url + '/authz-info', data=dumps(self.session.token))
+        response = requests.post(url + '/authz-info', data=self.session.token)
 
         if response.status_code != 204:
             print(f"\t ERROR: {loads(response.content)}")
@@ -126,7 +129,7 @@ class Client:
 
 def main():
     client = Client(client_id='ace_client_1',
-                    client_secret='ace_client_1_secret_123456')
+                    client_secret=b'ace_client_1_secret_123456')
 
     client.start_new_session()
 
