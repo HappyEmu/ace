@@ -10,7 +10,7 @@ class CoseKey:
         ECDSA = 1
         ECDHE = 2
 
-    def __init__(self, key, key_id, ktype: Type):
+    def __init__(self, key, key_id: bytes, ktype: Type):
         self.key = key
         self.key_id = key_id
         self.ktype = ktype

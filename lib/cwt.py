@@ -13,7 +13,7 @@ def encode(claims: dict, key: SigningKey):
 
     msg = Signature1Message(payload=dumps(claims),
                             protected_header=dumps(protected),
-                            unprotected_header=unprotected)
+                            unprotected_header=dumps(unprotected))
 
     return msg.serialize_signed(key)
 
@@ -32,9 +32,7 @@ def main():
         CK.AUD: 'thatSensor01',
         CK.SCOPE: 'r',
         CK.IAT: 234234,
-        CK.CNF: {
-            Key.COSE_KEY: cose_key
-        }
+        CK.CNF: { Key.COSE_KEY: cose_key }
     }
 
     cwt = encode(claims, key)

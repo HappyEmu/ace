@@ -88,7 +88,7 @@ class Message2(EdhocMessage):
                 self.session_id,
                 self.peer_session_id,
                 self.peer_nonce,
-                ecdh_key_to_cose(self.peer_key, encode=True)]
+                ecdh_key_to_cose(self.peer_key, kid=b'abcd', encode=True)]
 
     def aad_2(self, hashfunc, message_1: bytes):
         return hashfunc(message_1 + c.dumps(self.data_2))
@@ -103,7 +103,7 @@ class Message2(EdhocMessage):
         return Signature1Message(payload=b'',
                                  external_aad=self._aad_2,
                                  protected_header=protected,
-                                 unprotected_header=unprotected).serialize_signed(key)
+                                 unprotected_header=c.dumps(unprotected)).serialize_signed(key)
 
     @classmethod
     def deserialize(cls, encoded: bytes):
@@ -156,7 +156,7 @@ class Message3(EdhocMessage):
         return Signature1Message(payload=b'',
                                  external_aad=self._aad_3,
                                  protected_header=protected,
-                                 unprotected_header=unprotected).serialize_signed(key)
+                                 unprotected_header=c.dumps(unprotected)).serialize_signed(key)
 
 
 class MessageOk:

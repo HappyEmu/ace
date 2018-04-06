@@ -10,14 +10,15 @@ from lib.cose import CoseKey
 from lib.edhoc import Client as EdhocClient
 
 AS_URL = 'http://localhost:8080'
-RS_URL = 'http://localhost:8081'
+RS_URL = 'http://localhost:8000'
+#RS_URL = 'http://localhost:8081'
 
 
 class AceSession:
 
     session_id = 0
 
-    def __init__(self, session_id, private_key, public_key, key_id):
+    def __init__(self, session_id, private_key, public_key, key_id: bytes):
         self.session_id = session_id
         self.private_key = private_key
         self.public_key = public_key
@@ -55,7 +56,7 @@ class AceSession:
         :return: (private_key, public_key) pair
         """
 
-        key_id = os.urandom(2).hex()
+        key_id = os.urandom(2)
 
         private_key = SigningKey.generate(curve=NIST256p)
         public_key = private_key.get_verifying_key()
