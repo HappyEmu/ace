@@ -15,8 +15,8 @@ from token_registry import TokenRegistry
 from lib.access_token import AccessToken
 from lib.edhoc.util import vk_from_point
 
-RS_PUBLIC_KEY = vk_from_point(bytes.fromhex("49a2da855bc480028e71cbdf09b51545b20f73837c6a24c90957ce1cf46458af"),
-                              bytes.fromhex("d88ea8c7e63b0129466603bf50cd8369eeaa32c18bef9fb45ae2cdf593d826a1"))
+RS_PUBLIC_KEY = vk_from_point(bytes.fromhex("b4da5f5a12d7338c33967d26e2253894f7ae545320743678670d4b8ba1beb62f"),
+                              bytes.fromhex("c625e96316ba1f3120989a015cf4e193112bde5e10f5885d85c9aad8ade501f9"))
 
 
 class AuthorizationServer(HttpServer):

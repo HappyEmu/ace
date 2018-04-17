@@ -255,6 +255,11 @@ class Client:
 
         return
 
+    def encrypt(self, payload: bytes):
+        secret, salt = self._calculate_oscore_context()
+
+        return Encrypt0Message(payload).serialize(iv=salt, key=secret)
+
     def decrypt(self, ciphertext: bytes):
         secret, salt = self._calculate_oscore_context()
 

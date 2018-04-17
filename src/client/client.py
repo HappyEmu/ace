@@ -10,7 +10,7 @@ from lib.cose import CoseKey
 from lib.edhoc import Client as EdhocClient
 
 AS_URL = 'http://localhost:8080'
-RS_URL = 'http://localhost:8000'
+RS_URL = 'http://192.168.0.59:8000'
 #RS_URL = 'http://localhost:8081'
 
 
@@ -123,12 +123,7 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-    def access_resource(self, url):
-        """
-        Access protected resource
-        :param url: The URL to the protected resource
-        :return: Response from the protected resource
-        """
+    def establish_secure_context(self):
         edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key)
 
         def send(message):
@@ -142,6 +137,15 @@ class Client:
         edhoc_client.continue_edhoc(send)
         edhoc_client.print_oscore_context()
 
+        return edhoc_client
+
+    def access_resource(self, edhoc_client, url):
+        """
+        Access protected resource
+        :param edhoc_client: The EDHOC client to use
+        :param url: The URL to the protected resource
+        :return: Response from the protected resource
+        """
         response = requests.get(url)
 
         if response.status_code != 200:
@@ -152,6 +156,20 @@ class Client:
 
         return loads(decrypted_response)
 
+    def post_resource(self, edhoc_client, url, data: bytes):
+        # Encrypt payload
+        payload = edhoc_client.encrypt(data)
+
+        response = requests.post(url, payload)
+
+        if response.status_code != 204:
+            print(f"\t ERROR: {loads(response.content)}")
+            exit(1)
+
+        #decrypted_response = edhoc_client.decrypt(response.content)
+
+        #return loads(decrypted_response)
+
 
 def main():
     client = Client(client_id='ace_client_1',
@@ -161,8 +179,13 @@ def main():
 
     client.request_access_token(AS_URL)
     client.upload_access_token(RS_URL)
-    response = client.access_resource(RS_URL + '/temperature')
+    edhoc_session = client.establish_secure_context()
 
+    response = client.access_resource(edhoc_session, RS_URL + '/temperature')
+    print(f"Resource: {response}")
+
+    data = 1
+    response = client.post_resource(edhoc_session, RS_URL + '/led', dumps(data))
     print(f"Resource: {response}")
 
 

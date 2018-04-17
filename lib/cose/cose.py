@@ -32,6 +32,9 @@ class Signature1Message:
                                                        payload=self.payload,
                                                        external_aad=self.external_aad,
                                                        key=key)
+
+        print("Signature is: ", signature.hex())
+
         cose_sign1 = [
             self.protected_header,
             self.unprotected_header,
@@ -58,7 +61,7 @@ class Signature1Message:
 
         to_sign = dumps(sign_structure)
 
-        signature = key.sign_deterministic(to_sign, hashlib.sha256, sigencode=util.sigencode_der)
+        signature = key.sign_deterministic(to_sign, hashlib.sha256, sigencode=util.sigencode_string)
 
         return signature
 
@@ -86,7 +89,7 @@ class Signature1Message:
         sign_structure = Signature1Message.sign_structure("Signature1", protected, payload, external_aad)
         to_verify = dumps(sign_structure)
 
-        if not key.verify(signature, to_verify, hashlib.sha256, sigdecode=util.sigdecode_der):
+        if not key.verify(signature, to_verify, hashlib.sha256, sigdecode=util.sigdecode_string):
             raise SignatureVerificationFailed()
 
         return payload

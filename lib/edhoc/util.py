@@ -45,8 +45,8 @@ def ecdh_key_to_cose(key, kid: bytes = None, encode=True):
     cbor = {
         CoseKey.KTY: CoseKey.Type.EC2,
         CoseKey.CRV: curve,
-        CoseKey.X: bytes.fromhex(format(x, 'x')),
-        CoseKey.Y: bytes.fromhex(format(y, 'x'))
+        CoseKey.X: bytes.fromhex(format(x, 'x').zfill(64)),
+        CoseKey.Y: bytes.fromhex(format(y, 'x').zfill(64))
     }
 
     if kid is not None:
@@ -81,8 +81,8 @@ def ecdsa_key_to_cose(key: VerifyingKey, kid: bytes = None, encode=True):
     cbor = {
         CoseKey.KTY: CoseKey.Type.EC2,
         CoseKey.CRV: curve,
-        CoseKey.X: bytes.fromhex(format(x, 'x')),
-        CoseKey.Y: bytes.fromhex(format(y, 'x'))
+        CoseKey.X: bytes.fromhex(format(x, 'x').zfill(64)),
+        CoseKey.Y: bytes.fromhex(format(y, 'x').zfill(64))
     }
 
     if kid is not None:
