@@ -106,7 +106,7 @@ class ResourceServer(HttpServer):
         # Prepare Edhoc Server
         self.edhoc_server = EdhocServer(RS_PRIVATE_KEY, pop_key.key)
 
-        return web.Response(status=204)
+        return web.Response(status=201)
 
     def introspect(self, token: str):
         """
@@ -155,4 +155,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
