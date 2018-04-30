@@ -9,9 +9,9 @@ from lib.cbor.constants import Keys as CK
 from lib.cose.constants import Key as Cose
 from lib.cose import CoseKey
 from lib.http_server import HttpServer
-from client_registry import ClientRegistry
-from key_registry import KeyRegistry
-from token_registry import TokenRegistry
+from .client_registry import ClientRegistry
+from .key_registry import KeyRegistry
+from .token_registry import TokenRegistry
 from lib.access_token import AccessToken
 from lib.edhoc.util import vk_from_point
 
@@ -161,17 +161,3 @@ class AuthorizationServer(HttpServer):
         }
 
         return web.Response(status=201, body=dumps(response))
-
-
-def main():
-    sk = SigningKey.from_der(bytes.fromhex("307702010104203908b414f1a1f589e8de11a60cfc22fdff0182f093bf8cc40554087d"
-                                           "7557cc43a00a06082a8648ce3d030107a144034200045aeec31f9e64aad45aba2d365e"
-                                           "71e84dee0da331badab9118a2531501fd9861d027c9977ca32d544e6342676ef00fa43"
-                                           "4b3aaed99f4823750517ca3390374753"))
-
-    server = AuthorizationServer(signature_key=sk)
-    server.start(port=8080)
-
-
-if __name__ == "__main__":
-    main()

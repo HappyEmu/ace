@@ -10,8 +10,8 @@ from lib.cose import CoseKey
 from lib.edhoc import Client as EdhocClient
 
 AS_URL = 'http://localhost:8080'
-RS_URL = 'http://192.168.0.59:8000'
-#RS_URL = 'http://localhost:8081'
+#RS_URL = 'http://192.168.0.59:8000'
+RS_URL = 'http://localhost:8081'
 
 
 class AceSession:
@@ -169,25 +169,3 @@ class Client:
         #decrypted_response = edhoc_client.decrypt(response.content)
 
         #return loads(decrypted_response)
-
-
-def main():
-    client = Client(client_id='ace_client_1',
-                    client_secret=b'ace_client_1_secret_123456')
-
-    client.start_new_session()
-
-    client.request_access_token(AS_URL)
-    client.upload_access_token(RS_URL)
-    edhoc_session = client.establish_secure_context()
-
-    response = client.access_resource(edhoc_session, RS_URL + '/temperature')
-    print(f"Resource: {response}")
-
-    data = 1
-    response = client.post_resource(edhoc_session, RS_URL + '/led', dumps(data))
-    print(f"Resource: {response}")
-
-
-if __name__ == '__main__':
-    main()

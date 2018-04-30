@@ -12,7 +12,7 @@ from lib.cose.cose import SignatureVerificationFailed
 from lib.cose import CoseKey
 from lib.edhoc import Server as EdhocServer
 from lib.http_server import HttpServer
-from token_cache import TokenCache
+from .token_cache import TokenCache
 
 AS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200045aeec31f9e6"
                                                     "4aad45aba2d365e71e84dee0da331badab9118a2531501fd9861d027c9977ca32"
@@ -155,4 +155,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
