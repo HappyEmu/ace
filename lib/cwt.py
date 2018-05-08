@@ -20,29 +20,3 @@ def encode(claims: dict, key: SigningKey):
 
 def decode(encoded, key: VerifyingKey):
     return loads(Signature1Message.verify(encoded, key, external_aad=b''))
-
-
-def main():
-    key = SigningKey.generate(curve=NIST256p)
-    pk = key.get_verifying_key()
-
-    cose_key = ecdsa_key_to_cose(pk, kid=b'you-know-that-one')
-
-    claims = {
-        CK.AUD: 'thatSensor01',
-        CK.SCOPE: 'r',
-        CK.IAT: 234234,
-        CK.CNF: { Key.COSE_KEY: cose_key }
-    }
-
-    cwt = encode(claims, key)
-
-    print(cwt.hex())
-
-    payload = decode(cwt, pk)
-
-    print(payload.hex())
-
-
-if __name__ == '__main__':
-    main()
