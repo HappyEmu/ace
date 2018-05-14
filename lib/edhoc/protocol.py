@@ -155,8 +155,8 @@ class Server:
         oscore_master_secret = derive_key(self.session.shared_secret, length=128 // 8,
                                           context_info=cose_kdf_context("EDHOC OSCORE Master Secret", 128 // 8,
                                                                         other=exchange_hash))
-        oscore_master_salt = derive_key(self.session.shared_secret, length=64 // 8,
-                                        context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 64 // 8,
+        oscore_master_salt = derive_key(self.session.shared_secret, length=56 // 8,
+                                        context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 56 // 8,
                                                                       other=exchange_hash))
 
         self.oscore_master_secret = oscore_master_secret
