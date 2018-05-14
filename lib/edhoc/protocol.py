@@ -290,30 +290,5 @@ class Client:
         return oscore_master_secret, oscore_master_salt
 
 
-def main():
-    client_sk = SigningKey.generate(curve=NIST256p)
-    server_sk = SigningKey.generate(curve=NIST256p)
-
-    client_id = client_sk.get_verifying_key()
-    server_id = server_sk.get_verifying_key()
-
-    client = Client(client_sk, server_id)
-    server = Server(server_sk, client_id)
-
-    def send(message):
-        sent = message.serialize()
-        received = server.on_receive(sent).serialize()
-
-        return sent, received
-
-    client.initiate_edhoc(send)
-    client.continue_edhoc(send)
-
-    client.print_oscore_context()
-    server.print_oscore_context()
-
-    print("Done")
-
-
 if __name__ == '__main__':
     main()
