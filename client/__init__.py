@@ -119,7 +119,7 @@ class Client:
 
         response = requests.post(url + '/authz-info', data=self.session.token)
 
-        if response.status_code != 204:
+        if response.status_code != 201:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 

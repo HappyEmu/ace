@@ -1,3 +1,4 @@
+from cbor2 import dumps, loads
 from . import Client, AS_URL, RS_URL
 
 
