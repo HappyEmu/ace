@@ -12,16 +12,18 @@ from lib.cose.cose import SignatureVerificationFailed
 from lib.cose import CoseKey
 from lib.edhoc import Server as EdhocServer
 from lib.http_server import HttpServer
-from token_cache import TokenCache
+from .token_cache import TokenCache
 
-AS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200045aeec31f9e6"
-                                                    "4aad45aba2d365e71e84dee0da331badab9118a2531501fd9861d027c9977ca32"
-                                                    "d544e6342676ef00fa434b3aaed99f4823750517ca3390374753"))
+AS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200047069be"
+                                                    "d49cab8ffa5b1c820271aef0bc0c8f5cd149e05c5b9e37686da06d02bd5f"
+                                                    "7bc35ea8265be7c5e276ad7e7d0eb05e4a0551102a66bba88b02b5eb4c33"
+                                                    "55"))
 
-RS_PRIVATE_KEY = SigningKey.from_der(bytes.fromhex("30770201010420482b0d7968d79b5953eca49b618da8c5f796558189ed34595ef44"
-                                                   "be88dc5bf50a00a06082a8648ce3d030107a14403420004f2716524e7a5bf4e2354"
-                                                   "3a37a5e7bdd3547a9017f12f7fcf8aeadb0269aeb2c8a45dfb5fde3eee8c0a9a047"
-                                                   "9e694184f0aa2201d5f5bfa4f9df8338367f60648"))
+RS_PRIVATE_KEY = SigningKey.from_der(bytes.fromhex("307702010104200ffc411715d3cc4917bd27ac4f310552b085b1ca0bb0a8"
+                                                   "bbb9d8931d651544c1a00a06082a8648ce3d030107a144034200046cc415"
+                                                   "12d92fb03cb3b35bed5b494643a8a8a55503e87a90282c78d6c58a7e3c88"
+                                                   "a21c0287e7e8d76b0052b1f1a2dcebfea57714c1210d42f17b335adcb76d"
+                                                   "7a"))
 
 AS_URL = 'http://localhost:8080'
 
@@ -65,7 +67,7 @@ class ResourceServer(HttpServer):
     async def get_temperature(self, request):
         token = self.token_cache.get_token()
 
-        self.edhoc_server.print_oscore_context()
+        print(self.edhoc_server.oscore_context)
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':
@@ -106,7 +108,7 @@ class ResourceServer(HttpServer):
         # Prepare Edhoc Server
         self.edhoc_server = EdhocServer(RS_PRIVATE_KEY, pop_key.key)
 
-        return web.Response(status=204)
+        return web.Response(status=201)
 
     def introspect(self, token: str):
         """
@@ -155,4 +157,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

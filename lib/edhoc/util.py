@@ -117,27 +117,3 @@ def vk_from_point(x: bytes, y: bytes):
     key = VerifyingKey.from_public_point(p, curve)
 
     return key
-
-
-def main():
-    # key = ecdh_cose_to_key(dumps({
-    #     CoseKey.KTY: CoseKey.Type.EC2,
-    #     CoseKey.CRV: CoseKey.Curve.P_256,
-    #     CoseKey.X: 26987828860639459741275148105927727866567532987005391635620339733914939250266,
-    #     CoseKey.Y: 13201145698279263754542295514768112958052299740361512657822153071594243777460
-    # }))
-    #
-    # print(key.public_numbers())
-
-    #bla = b'a501022001215820d51daee07347e826853fcbb4a8f33782fc13c716c02c7a86a7b9da394eb1f2da225820289d47695828338e1c169592789d4af59bbff985669daa08dac60928f6cf6eda024461626364'
-
-    #ecdsa_cose_to_key(bla)
-
-    rs_x = bytes.fromhex('4981550328545725B9C34F21B660684CE2D2AA7CD9A7A470237ADE10EB8F3946')
-    rs_y = bytes.fromhex('21683F3B12DCBFF44A636B7F0DE389CB374D1C84210C8AD3852AD964A9A807C7')
-
-    key = vk_from_point(rs_x, rs_y)
-
-
-if __name__ == '__main__':
-    main()
