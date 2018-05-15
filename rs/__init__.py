@@ -67,7 +67,7 @@ class ResourceServer(HttpServer):
     async def get_temperature(self, request):
         token = self.token_cache.get_token()
 
-        self.edhoc_server.print_oscore_context()
+        print(self.edhoc_server.oscore_context)
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':

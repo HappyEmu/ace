@@ -37,8 +37,8 @@ class TestEdhoc(unittest.TestCase):
         client.initiate_edhoc(send)
         client.continue_edhoc(send)
 
-        client_ctx = client._calculate_oscore_context()
-        server_ctx = server._calculate_oscore_context()
+        client_ctx = client.oscore_context
+        server_ctx = server.oscore_context
         assert(client_ctx == server_ctx)
 
 

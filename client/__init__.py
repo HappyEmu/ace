@@ -135,7 +135,7 @@ class Client:
 
         edhoc_client.initiate_edhoc(send)
         edhoc_client.continue_edhoc(send)
-        edhoc_client.print_oscore_context()
+        print(edhoc_client.oscore_context)
 
         return edhoc_client
 
