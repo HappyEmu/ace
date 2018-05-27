@@ -124,8 +124,6 @@ class Client:
             exit(1)
 
     def establish_secure_context(self):
-        edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key)
-
         def send(message):
             sent = message.serialize()
 
@@ -133,8 +131,9 @@ class Client:
 
             return sent, received.content
 
-        edhoc_client.initiate_edhoc(send)
-        edhoc_client.continue_edhoc(send)
+        edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key, on_send=send)
+        edhoc_client.establish_context()
+
         print(edhoc_client.oscore_context)
 
         return edhoc_client

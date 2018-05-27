@@ -128,9 +128,9 @@ class Message3(EdhocMessage):
         self._cose_sig_u = None
         self._cose_enc_3 = None
 
-    def sign(self, key, aad: bytes):
+    def sign(self, key, kid: bytes, aad: bytes):
         self._aad_3 = aad
-        self._cose_sig_u = self.cose_sig_u(key)
+        self._cose_sig_u = self.cose_sig_u(key, kid)
 
     def encrypt(self, key, iv):
         self._cose_enc_3 = self.cose_enc_3(key, iv)
@@ -147,16 +147,21 @@ class Message3(EdhocMessage):
         return hashfunc(hashfunc(message1 + message2) + c.dumps(self.data_3))
 
     def cose_enc_3(self, key, iv):
-        return Encrypt0Message(plaintext=self._cose_sig_u, external_aad=self._aad_3).serialize(iv, key)
+        return Encrypt0Message(
+            plaintext=self._cose_sig_u,
+            external_aad=self._aad_3
+        ).serialize(iv, key)
 
-    def cose_sig_u(self, key):
+    def cose_sig_u(self, key, kid: bytes):
         protected = c.dumps({ Header.ALG: Algorithm.ES256 })
-        unprotected = { Header.KID: b'AsymmetricECDSA256' }
+        unprotected = { Header.KID: kid }
 
-        return Signature1Message(payload=b'',
-                                 external_aad=self._aad_3,
-                                 protected_header=protected,
-                                 unprotected_header=c.dumps(unprotected)).serialize_signed(key)
+        return Signature1Message(
+            payload=b'',
+            external_aad=self._aad_3,
+            protected_header=protected,
+            unprotected_header=c.dumps(unprotected)
+        ).serialize_signed(key)
 
 
 class MessageOk:

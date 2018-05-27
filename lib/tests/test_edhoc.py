@@ -25,8 +25,7 @@ class TestEdhoc(unittest.TestCase):
         client_id = client_sk.get_verifying_key()
         server_id = server_sk.get_verifying_key()
 
-        client = Client(client_sk, server_id)
-        server = Server(server_sk, client_id)
+        server = Server(server_sk)
 
         def send(message):
             sent = message.serialize()
@@ -34,12 +33,46 @@ class TestEdhoc(unittest.TestCase):
 
             return sent, received
 
-        client.initiate_edhoc(send)
-        client.continue_edhoc(send)
+        client = Client(client_sk, server_id, kid=b'client-1234', on_send=send)
+        server.add_peer_identity(client.kid, client_id)
 
-        client_ctx = client.oscore_context
-        server_ctx = server.oscore_context
+        client.establish_context()
+
+        client_ctx = client.oscore_context()
+        server_ctx = server.sessions[0].oscore_context
+
         assert(client_ctx == server_ctx)
+
+    def test_multiple_clients(self):
+        server_key = SigningKey.generate(curve=NIST256p)
+        server_id = server_key.get_verifying_key()
+        server = Server(server_key)
+
+        def test_send(message):
+            sent = message.serialize()
+            received = server.on_receive(sent).serialize()
+
+            return sent, received
+
+        # 1st Client
+        client1_key = SigningKey.generate(curve=NIST256p)
+        client1_id = client1_key.get_verifying_key()
+        client1 = Client(client1_key, server_id, kid=b'client-1-id', on_send=test_send)
+
+        # 2nd Client
+        client2_key = SigningKey.generate(curve=NIST256p)
+        client2_id = client2_key.get_verifying_key()
+        client2 = Client(client2_key, server_id, kid=b'client-2-id', on_send=test_send)
+
+        # Let server know about clients (simulate Uploading of Access Tokens)
+        server.add_peer_identity(client1.kid, client1_id)
+        server.add_peer_identity(client2.kid, client2_id)
+
+        client1.establish_context()
+        client2.establish_context()
+
+        assert(client1.oscore_context() == server.sessions[0].oscore_context)
+        assert(client2.oscore_context() == server.sessions[1].oscore_context)
 
 
 if __name__ == '__main__':
