@@ -89,6 +89,7 @@ class Server:
         self.vk = sk.get_verifying_key()
         self.peer_identities = {}
         self.sessions = []
+        self.sessions_by_kid = {}
 
         super().__init__()
 
@@ -166,18 +167,27 @@ class Server:
 
         sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
 
+        # Retrieve public key using kid
         client_kid = loads(loads(sig_u).value[1])[Header.KID]
         client_id = self.peer_identities[client_kid]
+
+        # Associate session with key id
+        self.sessions_by_kid[client_kid] = session
 
         payload = Signature1Message.verify(sig_u, client_id, external_aad=aad3)
 
         return MessageOk()
 
-    def encrypt(self, payload: bytes):
+    def encrypt(self, payload: bytes, kid: bytes):
+        session = self.sessions_by_kid[kid]
+
         return Encrypt0Message(payload).serialize(
-            iv=self.oscore_context.master_salt,
-            key=self.oscore_context.master_secret
+            iv=session.oscore_context.master_salt,
+            key=session.oscore_context.master_secret
         )
+
+    def oscore_context_for_kid(self, kid: bytes):
+        return self.sessions_by_kid[kid].oscore_context
 
 
 class Client:
@@ -284,6 +294,7 @@ class Client:
             external_aad=b''
         )
 
+    @property
     def oscore_context(self):
         return self.session.oscore_context
 

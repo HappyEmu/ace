@@ -38,16 +38,18 @@ class TestEdhoc(unittest.TestCase):
 
         client.establish_context()
 
-        client_ctx = client.oscore_context()
-        server_ctx = server.sessions[0].oscore_context
+        client_ctx = client.oscore_context
+        server_ctx = server.oscore_context_for_kid(b'client-1234')
 
         assert(client_ctx == server_ctx)
 
     def test_multiple_clients(self):
+        # Create server
         server_key = SigningKey.generate(curve=NIST256p)
         server_id = server_key.get_verifying_key()
         server = Server(server_key)
 
+        # Bypass any network, simply invoke receive callback on server
         def test_send(message):
             sent = message.serialize()
             received = server.on_receive(sent).serialize()
@@ -57,12 +59,20 @@ class TestEdhoc(unittest.TestCase):
         # 1st Client
         client1_key = SigningKey.generate(curve=NIST256p)
         client1_id = client1_key.get_verifying_key()
-        client1 = Client(client1_key, server_id, kid=b'client-1-id', on_send=test_send)
+
+        client1 = Client(client1_key,
+                         server_id,
+                         kid=b'client-1-id',
+                         on_send=test_send)
 
         # 2nd Client
         client2_key = SigningKey.generate(curve=NIST256p)
         client2_id = client2_key.get_verifying_key()
-        client2 = Client(client2_key, server_id, kid=b'client-2-id', on_send=test_send)
+
+        client2 = Client(client2_key,
+                         server_id,
+                         kid=b'client-2-id',
+                         on_send=test_send)
 
         # Let server know about clients (simulate Uploading of Access Tokens)
         server.add_peer_identity(client1.kid, client1_id)
@@ -71,8 +81,14 @@ class TestEdhoc(unittest.TestCase):
         client1.establish_context()
         client2.establish_context()
 
-        assert(client1.oscore_context() == server.sessions[0].oscore_context)
-        assert(client2.oscore_context() == server.sessions[1].oscore_context)
+        assert(client1.oscore_context == server.oscore_context_for_kid(b'client-1-id'))
+        assert(client2.oscore_context == server.oscore_context_for_kid(b'client-2-id'))
+
+        msg1 = b'Server to Client 1'
+        msg2 = b'Server to Client 2'
+
+        assert(client1.decrypt(server.encrypt(msg1, kid=b'client-1-id')) == msg1)
+        assert(client2.decrypt(server.encrypt(msg2, kid=b'client-2-id')) == msg2)
 
 
 if __name__ == '__main__':

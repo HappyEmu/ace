@@ -48,10 +48,11 @@ class ResourceServer(HttpServer):
         self.client_id = client_id
         self.token_cache = TokenCache()
 
-        self.edhoc_server = None
+        self.edhoc_server = EdhocServer(RS_PRIVATE_KEY)
 
     def on_start(self, router):
         router.add_get('/temperature', self.get_temperature)
+        router.add_post('/led', self.post_led)
         router.add_get('/audience', self.get_audience)
         router.add_post('/authz-info', self.authz_info)
         router.add_post('/.well-known/edhoc', self.edhoc)
@@ -63,11 +64,15 @@ class ResourceServer(HttpServer):
 
         return web.Response(status=201, body=response.serialize())
 
+    async def post_led(self, request):
+
+        return web.Response(status=201)
+
     # GET /temperature
     async def get_temperature(self, request):
         token = self.token_cache.get_token()
 
-        print(self.edhoc_server.oscore_context)
+        print(self.edhoc_server.oscore_context_for_kid)
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':
@@ -105,8 +110,8 @@ class ResourceServer(HttpServer):
 
         self.token_cache.add_token(token=decoded, pop_key=pop_key)
 
-        # Prepare Edhoc Server
-        self.edhoc_server = EdhocServer(RS_PRIVATE_KEY, pop_key.key)
+        # Inform Edhoc Server about new key
+        self.edhoc_server.add_peer_identity(pop_key.key_id, pop_key.key)
 
         return web.Response(status=201)
 
