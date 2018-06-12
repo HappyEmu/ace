@@ -65,6 +65,9 @@ class ResourceServer(HttpServer):
         return web.Response(status=201, body=response.serialize())
 
     async def post_led(self, request):
+        payload = await request.content.read()
+
+        sid = loads(paload)
 
         return web.Response(status=201)
 
@@ -72,7 +75,7 @@ class ResourceServer(HttpServer):
     async def get_temperature(self, request):
         token = self.token_cache.get_token()
 
-        print(self.edhoc_server.oscore_context_for_kid)
+        print(self.edhoc_server.oscore_context_for_kid())
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':

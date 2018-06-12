@@ -132,13 +132,13 @@ class Client:
             return sent, received.content
 
         edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key, on_send=send)
-        edhoc_client.establish_context()
+        oscore_context = edhoc_client.establish_context()
 
-        print(edhoc_client.oscore_context)
+        print(oscore_context)
 
-        return edhoc_client
+        return oscore_context
 
-    def access_resource(self, edhoc_client, url):
+    def access_resource(self, oscore_context, url):
         """
         Access protected resource
         :param edhoc_client: The EDHOC client to use
@@ -151,7 +151,7 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        decrypted_response = edhoc_client.decrypt(response.content)
+        decrypted_response = oscore_context.decrypt(response.content)
 
         return loads(decrypted_response)
 

@@ -36,12 +36,11 @@ class TestEdhoc(unittest.TestCase):
         client = Client(client_sk, server_id, kid=b'client-1234', on_send=send)
         server.add_peer_identity(client.kid, client_id)
 
-        client.establish_context()
+        client_ctx = client.establish_context()
+        server_ctx = server.oscore_context_for_recipient(client_ctx.sender_id)
 
-        client_ctx = client.oscore_context
-        server_ctx = server.oscore_context_for_kid(b'client-1234')
-
-        assert(client_ctx == server_ctx)
+        assert (client_ctx.master_secret == server_ctx.master_secret)
+        assert (client_ctx.master_salt == server_ctx.master_salt)
 
     def test_multiple_clients(self):
         # Create server
@@ -78,17 +77,23 @@ class TestEdhoc(unittest.TestCase):
         server.add_peer_identity(client1.kid, client1_id)
         server.add_peer_identity(client2.kid, client2_id)
 
-        client1.establish_context()
-        client2.establish_context()
+        client1_context = client1.establish_context()
+        client2_context = client2.establish_context()
 
-        assert(client1.oscore_context == server.oscore_context_for_kid(b'client-1-id'))
-        assert(client2.oscore_context == server.oscore_context_for_kid(b'client-2-id'))
+        server_context_1 = server.oscore_context_for_recipient(client1_context.sender_id)
+        server_context_2 = server.oscore_context_for_recipient(client2_context.sender_id)
+
+        assert (client1_context.master_secret == server_context_1.master_secret)
+        assert (client1_context.master_salt == server_context_1.master_salt)
+
+        assert (client2_context.master_secret == server_context_2.master_secret)
+        assert (client2_context.master_salt == server_context_2.master_salt)
 
         msg1 = b'Server to Client 1'
         msg2 = b'Server to Client 2'
 
-        assert(client1.decrypt(server.encrypt(msg1, kid=b'client-1-id')) == msg1)
-        assert(client2.decrypt(server.encrypt(msg2, kid=b'client-2-id')) == msg2)
+        assert(client1_context.decrypt(server_context_1.encrypt(msg1)) == msg1)
+        assert(client2_context.decrypt(server_context_2.encrypt(msg2)) == msg2)
 
 
 if __name__ == '__main__':

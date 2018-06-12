@@ -1,5 +1,4 @@
 import os
-from typing import NamedTuple
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -45,9 +44,31 @@ def message_digest(message: bytes) -> bytes:
     return digest.finalize()
 
 
-class OscoreContext(NamedTuple):
+class OscoreContext:
     master_secret: bytes
     master_salt: bytes
+    sender_id: bytes
+    recipient_id: bytes
+
+    def __init__(self, secret: bytes, salt: bytes, sid: bytes, rid: bytes):
+        self.master_secret = secret
+        self.master_salt = salt
+        self.sender_id = sid
+        self.recipient_id = rid
+
+    def encrypt(self, payload: bytes):
+        return Encrypt0Message(payload).serialize(
+            iv=self.master_salt,
+            key=self.master_secret
+        )
+
+    def decrypt(self, ciphertext: bytes):
+        return Encrypt0Message.decrypt(
+            ciphertext,
+            iv=self.master_salt,
+            key=self.master_secret,
+            external_aad=b''
+        )
 
     def __str__(self):
         return f'OSCORE context (master_secret={self.master_secret.hex()}, master_salt={self.master_salt.hex()})'
@@ -57,6 +78,7 @@ class EdhocSession:
 
     def __init__(self):
         self.id: bytes = None
+        self.peer_id: bytes = None
         self.shared_secret: bytes = None
         self.private_key = None
         self.peer_public_key = None
@@ -78,18 +100,23 @@ class EdhocSession:
             master_salt = derive_key(self.shared_secret,
                                      length=56 // 8,
                                      context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 56 // 8, other=exchange_hash))
-            self._oscore_context = OscoreContext(master_secret, master_salt)
+
+            self._oscore_context = OscoreContext(secret=master_secret,
+                                                 salt=master_salt,
+                                                 sid=self.id,
+                                                 rid=self.peer_id)
 
         return self._oscore_context
 
 
 class Server:
     def __init__(self, sk: SigningKey):
-        self.sk = sk
-        self.vk = sk.get_verifying_key()
+        self.sk: SigningKey = sk
+        self.vk: VerifyingKey = sk.get_verifying_key()
         self.peer_identities = {}
         self.sessions = []
         self.sessions_by_kid = {}
+        self.security_contexts = {}
 
         super().__init__()
 
@@ -126,6 +153,7 @@ class Server:
         ecdh_shared_secret = session_key.exchange(ec.ECDH(), peer_session_key)
 
         session.id = session_id
+        session.peer_id = peer_session_id
         session.private_key = session_key
         session.public_key = public_session_key
         session.shared_secret = ecdh_shared_secret
@@ -176,18 +204,12 @@ class Server:
 
         payload = Signature1Message.verify(sig_u, client_id, external_aad=aad3)
 
+        self.security_contexts[session.peer_id] = session.oscore_context
+
         return MessageOk()
 
-    def encrypt(self, payload: bytes, kid: bytes):
-        session = self.sessions_by_kid[kid]
-
-        return Encrypt0Message(payload).serialize(
-            iv=session.oscore_context.master_salt,
-            key=session.oscore_context.master_secret
-        )
-
-    def oscore_context_for_kid(self, kid: bytes):
-        return self.sessions_by_kid[kid].oscore_context
+    def oscore_context_for_recipient(self, rid: bytes):
+        return self.security_contexts[rid]
 
 
 class Client:
@@ -203,7 +225,7 @@ class Client:
 
     def establish_context(self):
         self._initiate_edhoc()
-        self._continue_edhoc()
+        return self._continue_edhoc()
 
     def _initiate_edhoc(self):
         session_id = os.urandom(2)
@@ -274,28 +296,4 @@ class Client:
 
         print(response)
 
-        return
-
-    def encrypt(self, payload: bytes):
-        context = self.session.oscore_context
-
-        return Encrypt0Message(payload).serialize(
-            iv=context.master_salt,
-            key=context.master_secret
-        )
-
-    def decrypt(self, ciphertext: bytes):
-        context = self.session.oscore_context
-
-        return Encrypt0Message.decrypt(
-            ciphertext,
-            iv=context.master_salt,
-            key=context.master_secret,
-            external_aad=b''
-        )
-
-    @property
-    def oscore_context(self):
         return self.session.oscore_context
-
-
