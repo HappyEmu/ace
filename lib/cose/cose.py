@@ -97,23 +97,25 @@ class Signature1Message:
 
 class Encrypt0Message:
 
-    def __init__(self, plaintext: bytes, external_aad: bytes = b''):
+    def __init__(self,
+                 plaintext: bytes,
+                 protected_header: bytes,
+                 unprotected_header: dict,
+                 external_aad: bytes = b''):
         self.plaintext = plaintext
+        self.unprotected_header = unprotected_header
+        self.protected_header = protected_header
         self.external_aad = external_aad
 
     def serialize(self, iv: bytes, key: bytes):
-        protected_header = dumps({ Header.ALG: Algorithm.AES_CCM_64_64_128 })
-        unprotected_header = { Header.IV: iv }
-
-        enc_structure = Encrypt0Message.enc_structure(protected_header, self.external_aad)
+        enc_structure = Encrypt0Message.enc_structure(self.protected_header, self.external_aad)
         aad = dumps(enc_structure)
 
         ciphertext = self._encrypt(key, iv, aad=aad)
 
-        cose_encrypt0 = [protected_header, unprotected_header, ciphertext]
+        cose_encrypt0 = [self.protected_header, self.unprotected_header, ciphertext]
 
         return dumps(CBORTag(Tag.COSE_ENCRYPT0, cose_encrypt0))
-
 
     # AES-CCM-64-64-128 = AES-CCM mode 128-bit key, 64-bit tag, 7-byte nonce
     def _encrypt(self, key: bytes, iv: bytes, aad: bytes):
@@ -142,31 +144,3 @@ class Encrypt0Message:
         plaintext = cipher.decrypt(nonce=iv, data=ciphertext, associated_data=aad)
 
         return plaintext
-
-
-def main():
-    # plaintext = b"This is the contentasvasmndbfvasmnbdfvasnbdvfasmdfasdmfnbsdvf"
-    #
-    # iv = bytes.fromhex("89F52F65A1C580")
-    # key = bytes.fromhex("849B57219DAE48DE646D07DBB533566E")
-    #
-    # msg = Encrypt0Message(plaintext, b'')
-    # cbor = msg.serialize(iv, key)
-    # print(cbor.hex())
-
-    key = bytes.fromhex("0544b756233b5f78a21d849aea2ccae2")
-    salt = bytes.fromhex("4ff37bb4ff8b5169")
-    ciphertext = bytes.fromhex("3462416fab63dea222c41ec699aa7c")
-    aad = bytes.fromhex("8368456e63727970743043a1010c40")
-    tag = bytes.fromhex("5649ef4c5d432152")
-
-    aes = AESCCM(key, tag_length=8)
-    cl_ciphertext = aes.encrypt(salt, bytes.fromhex("a16b74656d7065726174757265181e"), aad)
-
-    plaintext = aes.decrypt(salt, ciphertext, aad)
-
-    print(plaintext.hex())
-
-
-if __name__ == '__main__':
-    main()

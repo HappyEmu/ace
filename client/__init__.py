@@ -38,8 +38,8 @@ class AceSession:
         self.rs_public_key = public_key
 
     @classmethod
-    def create(cls):
-        (key_id, prv_key, pub_key) = AceSession.generate_session_key()
+    def create(cls, key_id: bytes):
+        (prv_key, pub_key) = AceSession.generate_session_key()
 
         session_id = AceSession.session_id
         AceSession.session_id += 1
@@ -56,12 +56,10 @@ class AceSession:
         :return: (private_key, public_key) pair
         """
 
-        key_id = os.urandom(2)
-
         private_key = SigningKey.generate(curve=NIST256p)
         public_key = private_key.get_verifying_key()
 
-        return key_id, private_key, public_key
+        return private_key, public_key
 
 
 class Client:
@@ -78,7 +76,7 @@ class Client:
         Start a new ACE session
         """
 
-        self.session = AceSession.create()
+        self.session = AceSession.create(key_id=bytes(self.client_id, 'ascii'))
 
     def request_access_token(self, url):
         """
@@ -131,7 +129,10 @@ class Client:
 
             return sent, received.content
 
-        edhoc_client = EdhocClient(self.session.private_key, self.session.rs_public_key, on_send=send)
+        edhoc_client = EdhocClient(self.session.private_key,
+                                   self.session.rs_public_key,
+                                   kid=bytes(self.client_id, 'ascii'),
+                                   on_send=send)
         oscore_context = edhoc_client.establish_context()
 
         print(oscore_context)
@@ -141,11 +142,12 @@ class Client:
     def access_resource(self, oscore_context, url):
         """
         Access protected resource
-        :param edhoc_client: The EDHOC client to use
+        :param oscore_context: The OSCORE context to use
         :param url: The URL to the protected resource
         :return: Response from the protected resource
         """
-        response = requests.get(url)
+        data = oscore_context.encrypt(b'')
+        response = requests.get(url, data=data)
 
         if response.status_code != 200:
             print(f"\t ERROR: {loads(response.content)}")
@@ -155,16 +157,16 @@ class Client:
 
         return loads(decrypted_response)
 
-    def post_resource(self, edhoc_client, url, data: bytes):
+    def post_resource(self, oscore_context, url, data: bytes):
         # Encrypt payload
-        payload = edhoc_client.encrypt(data)
+        payload = oscore_context.encrypt(data)
 
         response = requests.post(url, payload)
 
-        if response.status_code != 204:
+        if response.status_code != 201:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        #decrypted_response = edhoc_client.decrypt(response.content)
+        decrypted_response = oscore_context.decrypt(response.content)
 
-        #return loads(decrypted_response)
+        return loads(decrypted_response)

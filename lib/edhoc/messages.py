@@ -94,16 +94,26 @@ class Message2(EdhocMessage):
         return hashfunc(message_1 + c.dumps(self.data_2))
 
     def cose_enc_2(self, key, iv):
-        return Encrypt0Message(plaintext=self._cose_sig_v, external_aad=self._aad_2).serialize(iv, key)
+        protected_header = c.dumps({Header.ALG: Algorithm.AES_CCM_64_64_128})
+        unprotected_header = { Header.IV: iv }
+
+        return Encrypt0Message(
+            plaintext=self._cose_sig_v,
+            protected_header=protected_header,
+            unprotected_header=unprotected_header,
+            external_aad=self._aad_2
+        ).serialize(iv, key)
 
     def cose_sig_v(self, key):
         protected = c.dumps({ Header.ALG: Algorithm.ES256 })
         unprotected = { Header.KID: b'AsymmetricECDSA256' }
 
-        return Signature1Message(payload=b'',
-                                 external_aad=self._aad_2,
-                                 protected_header=protected,
-                                 unprotected_header=c.dumps(unprotected)).serialize_signed(key)
+        return Signature1Message(
+            payload=b'',
+            external_aad=self._aad_2,
+            protected_header=protected,
+            unprotected_header=c.dumps(unprotected)
+        ).serialize_signed(key)
 
     @classmethod
     def deserialize(cls, encoded: bytes):
@@ -147,8 +157,13 @@ class Message3(EdhocMessage):
         return hashfunc(hashfunc(message1 + message2) + c.dumps(self.data_3))
 
     def cose_enc_3(self, key, iv):
+        protected_header = c.dumps({Header.ALG: Algorithm.AES_CCM_64_64_128})
+        unprotected_header = {Header.IV: iv}
+
         return Encrypt0Message(
             plaintext=self._cose_sig_u,
+            protected_header=protected_header,
+            unprotected_header=unprotected_header,
             external_aad=self._aad_3
         ).serialize(iv, key)
 

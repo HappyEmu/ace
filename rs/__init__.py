@@ -7,8 +7,8 @@ from ecdsa import VerifyingKey, SigningKey, NIST256p
 
 import lib.cwt as cwt
 from lib.cbor.constants import Keys as CK
-from lib.cose.constants import Key as Cose
-from lib.cose.cose import SignatureVerificationFailed
+from lib.cose.constants import Key as Cose, Header
+from lib.cose.cose import SignatureVerificationFailed, Encrypt0Message
 from lib.cose import CoseKey
 from lib.edhoc import Server as EdhocServer
 from lib.http_server import HttpServer
@@ -66,16 +66,27 @@ class ResourceServer(HttpServer):
 
     async def post_led(self, request):
         payload = await request.content.read()
+        prot, unprot, cipher = loads(payload).value
+        kid = unprot[Header.KID]
 
-        sid = loads(paload)
+        oscore_context = self.edhoc_server.oscore_context_for_recipient(kid)
+        data = loads(oscore_context.decrypt(payload))
 
-        return web.Response(status=201)
+        print(f"Setting LED value to: {data[b'led_value']}")
+
+        response = oscore_context.encrypt(dumps(b'OK'))
+        return web.Response(status=201, body=response)
 
     # GET /temperature
     async def get_temperature(self, request):
+        payload = await request.content.read()
+        prot, unprot, cipher = loads(payload).value
+        kid = unprot[Header.KID]
+
         token = self.token_cache.get_token()
 
-        print(self.edhoc_server.oscore_context_for_kid())
+        # Fetch correct security context using kid = RID
+        oscore_context = self.edhoc_server.oscore_context_for_recipient(kid)
 
         # Verify scope
         if token[CK.SCOPE] != 'read_temperature':
@@ -83,7 +94,7 @@ class ResourceServer(HttpServer):
 
         temperature = random.randint(8, 42)
 
-        response = self.edhoc_server.encrypt(dumps({'temperature': f"{temperature}C"}))
+        response = oscore_context.encrypt(dumps({'temperature': f"{temperature}C"}))
 
         return web.Response(status=200, body=response)
 

@@ -12,7 +12,7 @@ from lib.cose.cose import SignatureVerificationFailed
 from lib.edhoc.util import ecdh_cose_to_key, ecdh_key_to_cose
 from lib.edhoc.messages import Message1, Message2, Message3, MessageOk, EDHOC_MSG_1, EDHOC_MSG_2, EDHOC_MSG_3, EdhocMessage
 from lib.cose import Encrypt0Message, Signature1Message
-from lib.cose.constants import Header
+from lib.cose.constants import Header, Algorithm
 
 backend = default_backend()
 
@@ -45,10 +45,6 @@ def message_digest(message: bytes) -> bytes:
 
 
 class OscoreContext:
-    master_secret: bytes
-    master_salt: bytes
-    sender_id: bytes
-    recipient_id: bytes
 
     def __init__(self, secret: bytes, salt: bytes, sid: bytes, rid: bytes):
         self.master_secret = secret
@@ -56,18 +52,24 @@ class OscoreContext:
         self.sender_id = sid
         self.recipient_id = rid
 
-    def encrypt(self, payload: bytes):
-        return Encrypt0Message(payload).serialize(
-            iv=self.master_salt,
-            key=self.master_secret
-        )
+    def encrypt(self, payload: bytes, external_aad: bytes = b''):
+        protected_header = b''
+        unprotected_header = {Header.PARTIAL_IV: 0,
+                              Header.KID: self.sender_id}
 
-    def decrypt(self, ciphertext: bytes):
+        return Encrypt0Message(
+            plaintext=payload,
+            protected_header=protected_header,
+            unprotected_header=unprotected_header,
+            external_aad=external_aad
+        ).serialize(iv=self.master_salt, key=self.master_secret)
+
+    def decrypt(self, ciphertext: bytes, external_aad: bytes = b''):
         return Encrypt0Message.decrypt(
             ciphertext,
             iv=self.master_salt,
             key=self.master_secret,
-            external_aad=b''
+            external_aad=external_aad
         )
 
     def __str__(self):

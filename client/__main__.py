@@ -12,8 +12,8 @@ client.upload_access_token(RS_URL)
 edhoc_session = client.establish_secure_context()
 
 response = client.access_resource(edhoc_session, RS_URL + '/temperature')
-print(f"Resource: {response}")
+print(f"Response: {response}")
 
-data = 1
+data = { b'led_value': 1 }
 response = client.post_resource(edhoc_session, RS_URL + '/led', dumps(data))
-print(f"Resource: {response}")
+print(f"Response: {response}")
