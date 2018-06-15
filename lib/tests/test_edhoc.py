@@ -1,7 +1,7 @@
 import unittest
 import hashlib
 from ecdsa import SigningKey, NIST256p, NIST384p
-from lib.edhoc import Client, Server
+from lib.edhoc import Client, Server, OscoreContext, bxor
 from lib.edhoc.util import ecdsa_key_to_cose, ecdsa_cose_to_key
 
 
@@ -92,8 +92,24 @@ class TestEdhoc(unittest.TestCase):
         msg1 = b'Server to Client 1'
         msg2 = b'Server to Client 2'
 
-        assert(client1_context.decrypt(server_context_1.encrypt(msg1)) == msg1)
-        assert(client2_context.decrypt(server_context_2.encrypt(msg2)) == msg2)
+        assert (client1_context.decrypt(server_context_1.encrypt(msg1)) == msg1)
+        assert (client2_context.decrypt(server_context_2.encrypt(msg2)) == msg2)
+
+    def test_oscore_context(self):
+        ctx = OscoreContext(secret=bytes.fromhex("0102030405060708090a0b0c0d0e0f10"),
+                            salt=bytes.fromhex("9e7ca92223786340"),
+                            sid=b'',
+                            rid=bytes.fromhex("01"))
+
+        assert (ctx.sender_key() == bytes.fromhex("7230aab3b549d94c9224aacc744e93ab"))
+        assert (ctx.recipient_key() == bytes.fromhex("e534a26a64aa3982e988e31f1e401e65"))
+        # assert (ctx.common_iv() == bytes.fromhex("01727733ab49ead385b18f7d91"))
+
+    def test_xor(self):
+        a = bytes.fromhex("1234")
+        b = bytes.fromhex("5678")
+
+        assert (bxor(a, b) == bytes.fromhex("444C"))
 
 
 if __name__ == '__main__':
