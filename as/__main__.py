@@ -1,4 +1,4 @@
-from . import AuthorizationServer
+from . import AuthorizationServer, Grant
 from ecdsa import VerifyingKey, SigningKey
 
 # Provision private key of authorization server
@@ -10,10 +10,21 @@ as_identity = SigningKey.from_der(bytes.fromhex("30770201010420fb37dbd38e48cfc41
 
 server = AuthorizationServer(identity=as_identity)
 
-# Pre-register client
+# Pre-register clients
 server.register_client(
     client_id="ace_client_1",
-    client_secret=b"ace_client_1_secret_123456"
+    client_secret=b"ace_client_1_secret_123456",
+    grants=[
+        Grant(audience="tempSensor0", scopes=["read_temperature", "post_led"])
+    ]
+)
+
+server.register_client(
+    client_id="ace_client_2",
+    client_secret=b"ace_client_2_secret_456789",
+    grants=[
+        Grant(audience="tempSensor0", scopes=["read_temperature"])
+    ]
 )
 
 # Pre-register resource server

@@ -11,7 +11,7 @@ from lib.cbor.constants import Keys as CK
 from lib.cose.constants import Key as Cose
 from lib.cose import CoseKey
 from lib.http_server import HttpServer
-from .client_registry import ClientRegistry
+from .client_registry import ClientRegistry, Client
 from .key_registry import KeyRegistry
 from .token_registry import TokenRegistry
 from lib.access_token import AccessToken
@@ -26,8 +26,8 @@ class AuthorizationServer(HttpServer):
         self.token_registry = TokenRegistry()
         self.resource_servers: Dict[str, ResourceServer] = {}
 
-    def register_client(self, client_id, client_secret):
-        self.client_registry.register_client(client_id, client_secret)
+    def register_client(self, client_id, client_secret, grants):
+        self.client_registry.register_client(Client(client_id, client_secret, grants))
 
     def register_resource_server(self, audience, scopes, public_key):
         self.resource_servers[audience] = ResourceServer(audience, scopes, public_key)
@@ -67,7 +67,16 @@ class AuthorizationServer(HttpServer):
         if requested_audience not in self.resource_servers.keys():
             return web.Response(status=400, body=dumps({'error': 'unknown_audience'}))
 
+        # Retrieve Resource Server for Audience
         rs = self.resource_servers[requested_audience]
+
+        # Check if RS has requested scopes
+        requested_scopes = params[CK.SCOPE].split(",")
+        if not all(elem in rs.scopes for elem in requested_scopes):
+            return web.Response(status=400, body=dumps({'error': 'unknown_scope'}))
+
+        # Check if client is allowed to access scopes on audience
+        # TODO
 
         # Extract Clients Public PoP key
         client_pop_key = CoseKey.from_cose(params[CK.CNF][Cose.COSE_KEY])
@@ -165,3 +174,4 @@ class AuthorizationServer(HttpServer):
 
 
 ResourceServer = namedtuple('ResourceServer', 'audience scopes public_key')
+Grant = namedtuple('Grant', 'audience scopes')

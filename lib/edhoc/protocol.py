@@ -218,9 +218,9 @@ class Server:
 
         msg2.encrypt(key=k_2, iv=iv_2)
 
-        print("Server AAD2 =", aad2.hex())
-        print("Server K2 =", k_2.hex())
-        print("Server IV2 =", iv_2.hex())
+        #print("Server AAD2 =", aad2.hex())
+        #print("Server K2 =", k_2.hex())
+        #print("Server IV2 =", iv_2.hex())
 
         session.message2 = msg2.serialize()
         return msg2
@@ -311,9 +311,9 @@ class Client:
                           length=7,
                           context_info=cose_kdf_context("IV-Generation", 7, other=aad2))
 
-        print("Client AAD2 =", aad2.hex())
-        print("Client K2 =", k_2.hex())
-        print("Client IV2 =", iv_2.hex())
+        #print("Client AAD2 =", aad2.hex())
+        #print("Client K2 =", k_2.hex())
+        #print("Client IV2 =", iv_2.hex())
 
         sig_v = Encrypt0Message.decrypt(enc_2, key=k_2, iv=iv_2, external_aad=aad2)
 
@@ -334,13 +334,13 @@ class Client:
 
         msg3.encrypt(k_3, iv_3)
 
-        print("Client AAD3 =", msg3._aad_3.hex())
-        print("Client K3 =", k_3.hex())
-        print("Client IV3 =", iv_3.hex())
+        #print("Client AAD3 =", msg3._aad_3.hex())
+        #print("Client K3 =", k_3.hex())
+        #print("Client IV3 =", iv_3.hex())
 
         self.session.message3 = msg3.serialize()
         (_, response) = self.on_send(msg3)
 
-        print(response)
+        #print(response)
 
         return self.session.oscore_context

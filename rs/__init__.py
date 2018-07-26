@@ -65,6 +65,15 @@ class ResourceServer(HttpServer):
         prot, unprot, cipher = loads(payload).value
         kid = unprot[Header.KID]
 
+        # Retrieve token for recipient
+        pop_key_id = self.edhoc_server.pop_key_id_for_recipient(rid=kid)
+        token = self.token_cache.get_token(pop_key_id=pop_key_id)
+
+        # Verify scope
+        authorized_scopes = token[CK.SCOPE].split(",")
+        if 'post_led' not in authorized_scopes:
+            return web.Response(status=401, body=dumps({'error': 'not authorized'}))
+
         oscore_context = self.edhoc_server.oscore_context_for_recipient(kid)
         data = loads(oscore_context.decrypt(payload))
 
@@ -87,8 +96,8 @@ class ResourceServer(HttpServer):
         token = self.token_cache.get_token(pop_key_id=pop_key_id)
 
         # Verify scope
-        authorized_scopes = ",".split(token[CK.SCOPE])
-        if 'read_temperature' in authorized_scopes:
+        authorized_scopes = token[CK.SCOPE].split(",")
+        if 'read_temperature' not in authorized_scopes:
             return web.Response(status=401, body=dumps({'error': 'not authorized'}))
 
         temperature = random.randint(8, 42)

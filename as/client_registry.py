@@ -2,9 +2,10 @@ from typing import List
 
 
 class Client(object):
-    def __init__(self, client_id, client_secret):
+    def __init__(self, client_id, client_secret, grants):
         self.client_id = client_id
         self.client_secret = client_secret
+        self.grants = grants
 
 
 class ClientRegistry(object):
@@ -18,20 +19,12 @@ class ClientRegistry(object):
         """
         return self._registered_clients
 
-    def register_client(self, client_id: str, client_secret: bytes, client: Client = None):
+    def register_client(self, client: Client):
         """
         Register a client
-
-        :param client_id: The client's ID
-        :param client_secret: The client's secret
         :param client: Pre-made Client object
         """
-        if client is not None:
-            self._registered_clients.append(client)
-        elif client_id is not None and client_secret is not None:
-            self._registered_clients.append(Client(client_id, client_secret))
-        else:
-            raise ValueError("Either 'client' or '(client_id, client_secret)' args must be passed")
+        self._registered_clients.append(client)
 
     def client_exists(self, client_id: str):
         """
