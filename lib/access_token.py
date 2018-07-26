@@ -22,8 +22,8 @@ class AccessToken:
             CK.CNF: { Key.COSE_KEY: key.encode()}
         })
 
-    def sign_and_export_self_contained(self, key: SigningKey) -> str:
-        return cwt.encode(self._claims, key)
+    def sign_and_export_self_contained(self, key: SigningKey, key_id: bytes) -> str:
+        return cwt.encode(self._claims, key, key_id)
 
     def export_referential(self):
         return self.reference

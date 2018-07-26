@@ -22,7 +22,7 @@ class TestCose(unittest.TestCase):
             CK.CNF: { Key.COSE_KEY: cose_key }
         }
 
-        token = cwt.encode(claims, key)
+        token = cwt.encode(claims, key, kid=b'')
         print(token.hex())
         payload = cwt.decode(token, pk)
         print(payload)

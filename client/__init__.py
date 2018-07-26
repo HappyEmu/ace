@@ -1,65 +1,13 @@
 import requests
-import os
 
-from ecdsa import SigningKey, VerifyingKey, NIST256p
+from typing import List
 from cbor2 import dumps, loads
 from lib.cbor.constants import Keys as CK, GrantTypes
 from lib.cose.constants import Key as Cose
 from lib.cose import CoseKey
-
 from lib.edhoc import Client as EdhocClient
 
-AS_URL = 'http://localhost:8080'
-#RS_URL = 'http://192.168.0.59:8000'
-RS_URL = 'http://localhost:8081'
-
-
-class AceSession:
-
-    session_id = 0
-
-    def __init__(self, session_id, private_key, public_key, key_id: bytes):
-        self.session_id = session_id
-        self.private_key = private_key
-        self.public_key = public_key
-        self.key_id = key_id
-        self.token = None
-        self.rs_public_key = None
-
-    def bind_token(self, token: str):
-        """
-        Bind access token to this session
-        :param token: The access token returned from the Authorization Server
-        """
-
-        self.token = token
-
-    def bind_rs_public_key(self, public_key: VerifyingKey):
-        self.rs_public_key = public_key
-
-    @classmethod
-    def create(cls, key_id: bytes):
-        (prv_key, pub_key) = AceSession.generate_session_key()
-
-        session_id = AceSession.session_id
-        AceSession.session_id += 1
-
-        return AceSession(session_id=session_id,
-                          private_key=prv_key,
-                          public_key=pub_key,
-                          key_id=key_id)
-
-    @staticmethod
-    def generate_session_key():
-        """
-        Generates an asymmetric session key
-        :return: (private_key, public_key) pair
-        """
-
-        private_key = SigningKey.generate(curve=NIST256p)
-        public_key = private_key.get_verifying_key()
-
-        return private_key, public_key
+from .ace_session import AceSession
 
 
 class Client:
@@ -67,35 +15,29 @@ class Client:
     def __init__(self, client_id: str, client_secret: bytes):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.session = None
+        self.sessions = {}
 
-        self.start_new_session()
-
-    def start_new_session(self):
-        """
-        Start a new ACE session
-        """
-
-        self.session = AceSession.create(key_id=bytes(self.client_id, 'ascii'))
-
-    def request_access_token(self, url):
+    def request_access_token(self, as_url: str, audience: str, scopes: List['str']):
         """
         Request access token from authorization server
-        :param url: The URL of the authorization server
+        :param as_url: The URL of the authorization server
+        :param audience: The audience of the resource server
+        :param scopes: The scopes to be accessed
         """
+        session = AceSession.create(key_id=bytes(f"{self.client_id}{AceSession.session_id}", 'ascii'))
 
-        pop_key = self.session.public_key
+        pop_key = session.public_pop_key
 
         payload = {
             CK.GRANT_TYPE:    GrantTypes.CLIENT_CREDENTIALS,
             CK.CLIENT_ID:     self.client_id,
             CK.CLIENT_SECRET: self.client_secret,
-            CK.SCOPE:         'read_temperature',
-            CK.AUD:           'tempSensor0',
-            CK.CNF:           { Cose.COSE_KEY: CoseKey(pop_key, self.session.key_id, CoseKey.Type.ECDSA).encode() }
+            CK.SCOPE:         ",".join(scopes),
+            CK.AUD:           audience,
+            CK.CNF:           { Cose.COSE_KEY: CoseKey(pop_key, session.pop_key_id, CoseKey.Type.ECDSA).encode() }
         }
 
-        response = requests.post(url=f"{url}/token", data=dumps(payload))
+        response = requests.post(url=f"{as_url}/token", data=dumps(payload))
 
         if response.status_code != 200:
             print(f"\t ERROR: {loads(response.content)}")
@@ -106,31 +48,37 @@ class Client:
         token = response_content[CK.ACCESS_TOKEN]
         rs_pub_key = CoseKey.from_cose(response_content[CK.RS_CNF])
 
-        self.session.bind_token(token)
-        self.session.bind_rs_public_key(rs_pub_key.key)
+        session.token = token
+        session.rs_public_key = rs_pub_key.key
 
-    def upload_access_token(self, url):
+        return session
+
+    def upload_access_token(self, session: AceSession, rs_url: str, endpoint: str):
         """
         Upload access token to resource server to establish security context
-        :param url: The url of the resource server
+        :param session The ACE session to use
+        :param rs_url: The url of the resource server
+        :param endpoint: The Authz-Info endpoint path
         """
 
-        response = requests.post(url + '/authz-info', data=self.session.token)
+        response = requests.post(rs_url + endpoint, data=session.token)
 
         if response.status_code != 201:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-    def establish_secure_context(self):
+        session.rs_url = rs_url
+
+    def establish_secure_context(self, session: AceSession):
         def send(message):
             sent = message.serialize()
 
-            received = requests.post(f'{RS_URL}/.well-known/edhoc', data=sent)
+            received = requests.post(f'{session.rs_url}/.well-known/edhoc', data=sent)
 
             return sent, received.content
 
-        edhoc_client = EdhocClient(self.session.private_key,
-                                   self.session.rs_public_key,
+        edhoc_client = EdhocClient(session.private_pop_key,
+                                   session.rs_public_key,
                                    kid=bytes(self.client_id, 'ascii'),
                                    on_send=send)
         oscore_context = edhoc_client.establish_context()
@@ -139,27 +87,31 @@ class Client:
 
         return oscore_context
 
-    def access_resource(self, oscore_context, url):
+    def access_resource(self, session: AceSession, url: str):
         """
         Access protected resource
-        :param oscore_context: The OSCORE context to use
         :param url: The URL to the protected resource
+        :param session: The ACE session to use
         :return: Response from the protected resource
         """
-        data = oscore_context.encrypt(b'')
+        session.ensure_oscore_context()
+
+        data = session.oscore_context.encrypt(b'')
         response = requests.get(url, data=data)
 
         if response.status_code != 200:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        decrypted_response = oscore_context.decrypt(response.content)
+        decrypted_response = session.oscore_context.decrypt(response.content)
 
         return loads(decrypted_response)
 
-    def post_resource(self, oscore_context, url, data: bytes):
+    def post_resource(self, session: AceSession, url: str, data: bytes):
+        session.ensure_oscore_context()
+
         # Encrypt payload
-        payload = oscore_context.encrypt(data)
+        payload = session.oscore_context.encrypt(data)
 
         response = requests.post(url, payload)
 
@@ -167,6 +119,6 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        decrypted_response = oscore_context.decrypt(response.content)
+        decrypted_response = session.oscore_context.decrypt(response.content)
 
         return loads(decrypted_response)

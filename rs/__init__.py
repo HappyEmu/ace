@@ -79,13 +79,16 @@ class ResourceServer(HttpServer):
         prot, unprot, cipher = loads(payload).value
         kid = unprot[Header.KID]
 
-        token = self.token_cache.get_token()
-
         # Fetch correct security context using kid = RID
-        oscore_context = self.edhoc_server.oscore_context_for_recipient(kid)
+        oscore_context = self.edhoc_server.oscore_context_for_recipient(rid=kid)
+
+        # Retrieve token for recipient
+        pop_key_id = self.edhoc_server.pop_key_id_for_recipient(rid=kid)
+        token = self.token_cache.get_token(pop_key_id=pop_key_id)
 
         # Verify scope
-        if token[CK.SCOPE] != 'read_temperature':
+        authorized_scopes = ",".split(token[CK.SCOPE])
+        if 'read_temperature' in authorized_scopes:
             return web.Response(status=401, body=dumps({'error': 'not authorized'}))
 
         temperature = random.randint(8, 42)
@@ -115,9 +118,10 @@ class ResourceServer(HttpServer):
         # Extract PoP Key
         pop_key = CoseKey.from_cose(decoded[CK.CNF][Cose.COSE_KEY])
 
-        self.token_cache.add_token(token=decoded, pop_key=pop_key)
+        # Store token and store by PoP key id
+        self.token_cache.add_token(token=decoded, pop_key_id=pop_key.key_id)
 
-        # Inform Edhoc Server about new key
+        # Inform EDHOC Server about new key
         self.edhoc_server.add_peer_identity(pop_key.key_id, pop_key.key)
 
         return web.Response(status=201)

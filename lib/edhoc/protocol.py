@@ -159,8 +159,8 @@ class Server:
         self.vk: VerifyingKey = sk.get_verifying_key()
         self.peer_identities = {}
         self.sessions = []
-        self.sessions_by_kid = {}
         self.security_contexts = {}
+        self.pop_key_by_rid = {}
 
         super().__init__()
 
@@ -240,20 +240,22 @@ class Server:
         sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
 
         # Retrieve public key using kid
-        client_kid = loads(loads(sig_u).value[1])[Header.KID]
-        client_id = self.peer_identities[client_kid]
+        pop_key_id = loads(loads(sig_u).value[1])[Header.KID]
+        pop_key = self.peer_identities[pop_key_id]
 
-        # Associate session with key id
-        self.sessions_by_kid[client_kid] = session
-
-        payload = Signature1Message.verify(sig_u, client_id, external_aad=aad3)
+        # Perform proof-of-possession
+        payload = Signature1Message.verify(sig_u, pop_key, external_aad=aad3)
 
         self.security_contexts[session.peer_id] = session.oscore_context
+        self.pop_key_by_rid[session.peer_id] = pop_key_id
 
         return MessageOk()
 
     def oscore_context_for_recipient(self, rid: bytes):
         return self.security_contexts[rid]
+
+    def pop_key_id_for_recipient(self, rid: bytes):
+        return self.pop_key_by_rid[rid]
 
 
 class Client:

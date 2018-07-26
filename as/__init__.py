@@ -82,7 +82,7 @@ class AuthorizationServer(HttpServer):
         self.key_registry.add_key(client_id, client_pop_key)
         self.token_registry.add_token(token, self_contained=True)
 
-        token_sent = token.sign_and_export_self_contained(self.identity)
+        token_sent = token.sign_and_export_self_contained(self.identity, key_id=b'ace.as-server.com')
         # token_sent = token.export_referential()
 
         response = {
