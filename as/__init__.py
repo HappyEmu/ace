@@ -3,7 +3,9 @@ import os
 
 from aiohttp import web
 from cbor2 import dumps, loads
-from ecdsa import VerifyingKey, SigningKey, NIST256p
+from ecdsa import VerifyingKey, SigningKey
+from collections import namedtuple
+from typing import Dict
 
 from lib.cbor.constants import Keys as CK
 from lib.cose.constants import Key as Cose
@@ -13,42 +15,32 @@ from .client_registry import ClientRegistry
 from .key_registry import KeyRegistry
 from .token_registry import TokenRegistry
 from lib.access_token import AccessToken
-from lib.edhoc.util import vk_from_point
-
-RS_PUBLIC_KEY = VerifyingKey.from_der(bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200046cc415"
-                                                    "12d92fb03cb3b35bed5b494643a8a8a55503e87a90282c78d6c58a7e3c88"
-                                                    "a21c0287e7e8d76b0052b1f1a2dcebfea57714c1210d42f17b335adcb76d"
-                                                    "7a"))
 
 
 class AuthorizationServer(HttpServer):
 
-    def __init__(self, signature_key: SigningKey):
-        self.signature_key = signature_key
+    def __init__(self, identity: SigningKey):
+        self.identity = identity
         self.client_registry = ClientRegistry()
-        self.client_registry.register_client(client_id="ace_client_1",
-                                             client_secret=b"ace_client_1_secret_123456")
         self.key_registry = KeyRegistry()
         self.token_registry = TokenRegistry()
+        self.resource_servers: Dict[str, ResourceServer] = {}
+
+    def register_client(self, client_id, client_secret):
+        self.client_registry.register_client(client_id, client_secret)
+
+    def register_resource_server(self, audience, scopes, public_key):
+        self.resource_servers[audience] = ResourceServer(audience, scopes, public_key)
+
+    def public_key(self):
+        self.identity.get_verifying_key()
 
     def on_start(self, router):
-        router.add_get('/clients', self.clients)
         router.add_post('/token', self.token)
         router.add_post('/introspect', self.introspect)
 
     def verify_client(self, client_id, client_secret):
         return self.client_registry.check_secret(client_id, client_secret)
-
-    async def clients(self, request):
-        """
-        Returns a list of all approved client IDs.
-        DEBUG ONLY!
-        """
-        response = {
-            'approved_clients': [c.client_id for c in self.client_registry.registered_clients]
-        }
-
-        return web.json_response(response)
 
     # POST
     async def token(self, request):
@@ -70,6 +62,13 @@ class AuthorizationServer(HttpServer):
         if not self.verify_client(client_id, client_secret):
             return web.Response(status=400, body=dumps({'error': 'unauthorized_client'}))
 
+        # Check if audience exists
+        requested_audience = params[CK.AUD]
+        if requested_audience not in self.resource_servers.keys():
+            return web.Response(status=400, body=dumps({'error': 'unknown_audience'}))
+
+        rs = self.resource_servers[requested_audience]
+
         # Extract Clients Public PoP key
         client_pop_key = CoseKey.from_cose(params[CK.CNF][Cose.COSE_KEY])
 
@@ -83,14 +82,14 @@ class AuthorizationServer(HttpServer):
         self.key_registry.add_key(client_id, client_pop_key)
         self.token_registry.add_token(token, self_contained=True)
 
-        token_sent = token.sign_and_export_self_contained(self.signature_key)
+        token_sent = token.sign_and_export_self_contained(self.identity)
         # token_sent = token.export_referential()
 
         response = {
             CK.ACCESS_TOKEN: token_sent,
             CK.TOKEN_TYPE: 'pop',
             CK.PROFILE: 'coap_oscore',
-            CK.RS_CNF: CoseKey(RS_PUBLIC_KEY, b'rs_pub_key', CoseKey.Type.ECDSA).encode()
+            CK.RS_CNF: CoseKey(rs.public_key, b'rs_pub_key', CoseKey.Type.ECDSA).encode()
         }
 
         return web.Response(status=200, body=dumps(response))
@@ -153,13 +152,16 @@ class AuthorizationServer(HttpServer):
         response = {
             CK.ACTIVE: True,
             CK.SCOPE: access_context.scope,
-            CK.AUD:   access_context.audience,
-            CK.ISS:   access_context.issuer,
-            CK.EXP:   access_context.expires,
-            CK.IAT:   access_context.issued_at,
+            CK.AUD: access_context.audience,
+            CK.ISS: access_context.issuer,
+            CK.EXP: access_context.expires,
+            CK.IAT: access_context.issued_at,
             CK.CNF: {
                 Cose.COSE_KEY: access_context.bound_key.encode()
             }
         }
 
         return web.Response(status=201, body=dumps(response))
+
+
+ResourceServer = namedtuple('ResourceServer', 'audience scopes public_key')
