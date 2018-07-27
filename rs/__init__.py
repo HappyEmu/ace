@@ -1,13 +1,10 @@
 import random
 
-from .resource_server import ResourceServer
+from lib.ace.rs import ResourceServer
 
 from aiohttp import web
 from cbor2 import dumps, loads
 from ecdsa import VerifyingKey, SigningKey
-
-from lib.edhoc import OscoreContext
-from .token_cache import TokenCache
 
 
 class TemperatureServer(ResourceServer):
@@ -27,7 +24,7 @@ class TemperatureServer(ResourceServer):
         router.add_get('/temperature', self.wrap("read_temperature", self.get_temperature))
         router.add_post('/led', self.wrap("post_led", self.post_led))
 
-    def post_led(self, request, payload, token: dict, oscore_context: OscoreContext):
+    def post_led(self, request, payload, token, oscore_context):
         data = loads(oscore_context.decrypt(payload))
 
         print(f"Setting LED value to: {data[b'led_value']}")
@@ -36,7 +33,7 @@ class TemperatureServer(ResourceServer):
         return web.Response(status=201, body=response)
 
     # GET /temperature
-    def get_temperature(self, request, payload, token: dict, oscore_context: OscoreContext):
+    def get_temperature(self, request, payload, token, oscore_context):
         temperature = random.randint(8, 42)
         response = oscore_context.encrypt(dumps({'temperature': f"{temperature}C"}))
 

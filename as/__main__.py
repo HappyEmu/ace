@@ -1,4 +1,4 @@
-from . import AuthorizationServer, Grant
+from lib.ace.aus import AuthorizationServer, Grant
 from ecdsa import VerifyingKey, SigningKey
 
 # Provision private key of authorization server

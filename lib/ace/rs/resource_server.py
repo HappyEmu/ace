@@ -4,7 +4,7 @@ from aiohttp import web
 from cbor2 import dumps, loads
 from ecdsa import VerifyingKey, SigningKey
 
-import lib.cwt as cwt
+import lib.cose.cwt as cwt
 from lib.cbor.constants import Keys as CK
 from lib.cose.constants import Key as Cose, Header
 from lib.cose.cose import SignatureVerificationFailed

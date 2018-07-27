@@ -3,7 +3,7 @@ import os
 from lib.cbor.constants import Keys as CK
 from lib.cose.constants import Key
 from lib.cose import CoseKey
-import lib.cwt as cwt
+import lib.cose.cwt as cwt
 from ecdsa import SigningKey
 
 

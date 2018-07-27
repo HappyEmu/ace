@@ -1,4 +1,4 @@
-from lib.access_token import AccessToken
+from lib.ace.aus.access_token import AccessToken
 
 
 class TokenRegistry:
