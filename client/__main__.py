@@ -4,7 +4,6 @@ from . import Client
 AS_URL = 'http://localhost:8080'
 RS_URL = 'http://localhost:8081'
 
-
 client = Client(client_id='ace_client_1',
                 client_secret=b'ace_client_1_secret_123456')
 
@@ -45,4 +44,20 @@ print(f"Response: {response}")
 # Update resource on RS
 data = { b'led_value': 1 }
 response = client2.post_resource(session2, RS_URL + '/led', dumps(data))
+print(f"Response: {response}")
+
+# Access temperature resource
+response = client2.access_resource(session2, RS_URL + '/temperature')
+print(f"Response: {response}")
+
+# Access temperature resource
+response = client2.access_resource(session2, RS_URL + '/temperature')
+print(f"Response: {response}")
+
+# Access temperature resource
+response = client2.access_resource(session2, RS_URL + '/temperature')
+print(f"Response: {response}")
+
+# Access temperature resource
+response = client2.access_resource(session2, RS_URL + '/temperature')
 print(f"Response: {response}")
