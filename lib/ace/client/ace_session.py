@@ -18,18 +18,18 @@ class AceSession:
         self.rs_public_key = None
         self.oscore_context = None
 
-    def ensure_oscore_context(self):
+    def ensure_oscore_context(self, rs_url: str):
         if self.oscore_context is None:
-            self.establish_oscore_context()
+            self.establish_oscore_context(rs_url)
 
-    def establish_oscore_context(self):
+    def establish_oscore_context(self, rs_url: str):
         if self.oscore_context is not None:
             return
 
         def send(message):
             sent = message.serialize()
 
-            received = requests.post(f'{self.rs_url}/.well-known/edhoc', data=sent)
+            received = requests.post(f'{rs_url}/.well-known/edhoc', data=sent)
 
             return sent, received.content
 

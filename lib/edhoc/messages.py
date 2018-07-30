@@ -183,3 +183,9 @@ class MessageOk:
 
     def serialize(self):
         return c.dumps(["OK"])
+
+
+class MessageError:
+
+    def serialize(self):
+        return c.dumps(["Error"])

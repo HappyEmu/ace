@@ -10,7 +10,8 @@ from cbor2 import loads, dumps
 
 from lib.cose.cose import SignatureVerificationFailed
 from lib.edhoc.util import ecdh_cose_to_key, ecdh_key_to_cose
-from lib.edhoc.messages import Message1, Message2, Message3, MessageOk, EDHOC_MSG_1, EDHOC_MSG_2, EDHOC_MSG_3, EdhocMessage
+from lib.edhoc.messages import Message1, Message2, Message3, MessageOk, \
+    MessageError, EDHOC_MSG_1, EDHOC_MSG_2, EDHOC_MSG_3, EdhocMessage
 from lib.cose import Encrypt0Message, Signature1Message
 from lib.cose.constants import Header, Algorithm
 
@@ -241,13 +242,16 @@ class Server:
 
         # Retrieve public key using kid
         pop_key_id = loads(loads(sig_u).value[1])[Header.KID]
-        pop_key = self.peer_identities[pop_key_id]
 
         # Perform proof-of-possession
-        payload = Signature1Message.verify(sig_u, pop_key, external_aad=aad3)
+        try:
+            pop_key = self.peer_identities[pop_key_id]
+            payload = Signature1Message.verify(sig_u, pop_key, external_aad=aad3)
 
-        self.security_contexts[session.peer_id] = session.oscore_context
-        self.pop_key_by_rid[session.peer_id] = pop_key_id
+            self.security_contexts[session.peer_id] = session.oscore_context
+            self.pop_key_by_rid[session.peer_id] = pop_key_id
+        except (SignatureVerificationFailed, KeyError) as e:
+            return MessageError()
 
         return MessageOk()
 

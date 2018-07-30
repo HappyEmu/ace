@@ -20,10 +20,10 @@ session = client.request_access_token(
 client.upload_access_token(session, RS_URL, '/authz-info')
 
 # Access temperature resource
-response = client.access_resource(session, RS_URL + '/temperature')
+response = client.access_resource(session, RS_URL, '/temperature')
 print(f"Response: {response}")
 
 # Update LED resource on RS
 data = { b'led_value': 1 }
-response = client.post_resource(session, RS_URL + '/led', dumps(data))
+response = client.post_resource(session, RS_URL, '/led', dumps(data))
 print(f"Response: {response}")

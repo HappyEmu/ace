@@ -21,8 +21,8 @@ class TemperatureServer(ResourceServer):
     def on_start(self, router):
         super().on_start(router)
 
-        router.add_get('/temperature', self.wrap("read_temperature", self.get_temperature))
-        router.add_post('/led', self.wrap("post_led", self.post_led))
+        router.add_get('/temperature', self.wrap(scope="read_temperature", handler=self.get_temperature))
+        router.add_post('/led', self.wrap(scope="post_led", handler=self.post_led))
 
     def post_led(self, request, payload, token, oscore_context):
         data = loads(oscore_context.decrypt(payload))

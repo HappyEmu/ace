@@ -67,7 +67,7 @@ class Client:
             print(f"\t ERROR: {loads(response.content)}")
             exit(1)
 
-        session.rs_url = rs_url
+        # session.rs_url = rs_url
 
     def establish_secure_context(self, session: AceSession):
         def send(message):
@@ -87,17 +87,17 @@ class Client:
 
         return oscore_context
 
-    def access_resource(self, session: AceSession, url: str):
+    def access_resource(self, session: AceSession, rs_url: str, endpoint: str):
         """
         Access protected resource
         :param url: The URL to the protected resource
         :param session: The ACE session to use
         :return: Response from the protected resource
         """
-        session.ensure_oscore_context()
+        session.ensure_oscore_context(rs_url)
 
         data = session.oscore_context.encrypt(b'')
-        response = requests.get(url, data=data)
+        response = requests.get(f"{rs_url}{endpoint}", data=data)
 
         if response.status_code != 200:
             print(f"\t ERROR: {loads(response.content)}")
@@ -107,13 +107,13 @@ class Client:
 
         return loads(decrypted_response)
 
-    def post_resource(self, session: AceSession, url: str, data: bytes):
-        session.ensure_oscore_context()
+    def post_resource(self, session: AceSession, rs_url: str, endpoint: str, data: bytes):
+        session.ensure_oscore_context(rs_url)
 
         # Encrypt payload
         payload = session.oscore_context.encrypt(data)
 
-        response = requests.post(url, payload)
+        response = requests.post(f"{rs_url}{endpoint}", payload)
 
         if response.status_code != 201:
             print(f"\t ERROR: {loads(response.content)}")

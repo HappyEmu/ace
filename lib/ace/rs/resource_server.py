@@ -50,7 +50,7 @@ class ResourceServer(HttpServer):
         router.add_post('/authz-info', self.authz_info)
         router.add_post('/.well-known/edhoc', self.edhoc)
 
-    def wrap(self, handler_scope, handler):
+    def wrap(self, scope, handler):
         async def wrapped_handler(request):
             payload = await request.content.read()
             prot, unprot, cipher = loads(payload).value
@@ -62,7 +62,7 @@ class ResourceServer(HttpServer):
 
             # Verify scope
             authorized_scopes = token[CK.SCOPE].split(",")
-            if handler_scope not in authorized_scopes:
+            if scope not in authorized_scopes:
                 return web.Response(status=401, body=dumps({'error': 'not authorized'}))
 
             oscore_context = self.edhoc_server.oscore_context_for_recipient(kid)
