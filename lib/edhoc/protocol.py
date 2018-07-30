@@ -66,17 +66,27 @@ class EdhocSession:
         if self._oscore_context is None:
             exchange_hash = message_digest(message_digest(self.message1 + self.message2) + self.message3)
 
-            master_secret = derive_key(self.shared_secret,
-                                       length=128 // 8,
-                                       context_info=cose_kdf_context("EDHOC OSCORE Master Secret", 128 // 8, other=exchange_hash))
-            master_salt = derive_key(self.shared_secret,
-                                     length=56 // 8,
-                                     context_info=cose_kdf_context("EDHOC OSCORE Master Salt", 56 // 8, other=exchange_hash))
+            key_size = 128 // 8
+            salt_size = 64 // 8
 
-            self._oscore_context = OscoreContext(secret=master_secret,
-                                                 salt=master_salt,
-                                                 sid=self.id,
-                                                 rid=self.peer_id)
+            master_secret = derive_key(
+                self.shared_secret,
+                length=key_size,
+                context_info=cose_kdf_context("EDHOC OSCORE Master Secret", key_size, other=exchange_hash)
+            )
+
+            master_salt = derive_key(
+                self.shared_secret,
+                length=salt_size,
+                context_info=cose_kdf_context("EDHOC OSCORE Master Salt", salt_size, other=exchange_hash)
+            )
+
+            self._oscore_context = OscoreContext(
+                secret=master_secret,
+                salt=master_salt,
+                sid=self.id,
+                rid=self.peer_id
+            )
 
         return self._oscore_context
 
@@ -142,7 +152,7 @@ class Server:
 
         # Encrypt message
         k_2 = derive_key(ecdh_shared_secret, 16, context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
-        iv_2 = derive_key(ecdh_shared_secret, 7, context_info=cose_kdf_context("IV-Generation", 7, other=aad2))
+        iv_2 = derive_key(ecdh_shared_secret, 13, context_info=cose_kdf_context("IV-Generation", 13, other=aad2))
 
         msg2.encrypt(key=k_2, iv=iv_2)
 
@@ -162,8 +172,8 @@ class Server:
 
         k_3 = derive_key(session.shared_secret, 16,
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
-        iv_3 = derive_key(session.shared_secret, 7,
-                          context_info=cose_kdf_context("IV-Generation", 7, other=aad3))
+        iv_3 = derive_key(session.shared_secret, 13,
+                          context_info=cose_kdf_context("IV-Generation", 13, other=aad3))
 
         sig_u = Encrypt0Message.decrypt(enc_3, k_3, iv_3, external_aad=aad3)
 
@@ -239,8 +249,8 @@ class Client:
                          length=16,
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad2))
         iv_2 = derive_key(ecdh_shared_secret,
-                          length=7,
-                          context_info=cose_kdf_context("IV-Generation", 7, other=aad2))
+                          length=13,
+                          context_info=cose_kdf_context("IV-Generation", 13, other=aad2))
 
         #print("Client AAD2 =", aad2.hex())
         #print("Client K2 =", k_2.hex())
@@ -260,8 +270,8 @@ class Client:
                          length=16,
                          context_info=cose_kdf_context("AES-CCM-64-64-128", 16, other=aad3))
         iv_3 = derive_key(ecdh_shared_secret,
-                          length=7,
-                          context_info=cose_kdf_context("IV-Generation", 7, other=aad3))
+                          length=13,
+                          context_info=cose_kdf_context("IV-Generation", 13, other=aad3))
 
         msg3.encrypt(k_3, iv_3)
 
