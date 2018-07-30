@@ -1,8 +1,7 @@
 import unittest
 from ecdsa import SigningKey, NIST256p
-from lib import cwt
 from lib.cose.constants import Header, Key, Algorithm
-from lib.cose import Encrypt0Message
+from lib.cose import Encrypt0Message, cwt
 from lib.cbor.constants import Keys as CK
 from lib.edhoc.util import ecdsa_key_to_cose
 from cbor2 import dumps

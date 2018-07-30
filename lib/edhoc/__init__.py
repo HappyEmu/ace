@@ -1,1 +1,2 @@
-from lib.edhoc.protocol import Server, Client, OscoreContext, bxor
+from lib.edhoc.protocol import Server, Client
+from lib.edhoc.context import OscoreContext, bxor
