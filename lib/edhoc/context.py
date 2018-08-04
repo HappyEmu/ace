@@ -19,10 +19,13 @@ class OscoreContext:
         self.recipient_id = rid
         self.sequence_number = 0
 
-    def encrypt(self, payload: bytes, external_aad: bytes = b''):
+    def encrypt(self, payload: bytes):
+        piv = bytes([self.sequence_number])
+        kid = self.sender_id
+
         protected_header = b''
-        unprotected_header = {Header.PARTIAL_IV: bytes([self.sequence_number]),
-                              Header.KID: self.sender_id}
+        unprotected_header = {Header.PARTIAL_IV: piv,
+                              Header.KID: kid}
 
         # Compute sender key and nonce for this particular message
         key = self.sender_key()
@@ -32,18 +35,23 @@ class OscoreContext:
         # Increase sequence number => nonce is always unique
         self.sequence_number += 1
 
+        aad = dumps([piv, kid])
+
         # Encrypt message
         return Encrypt0Message(
             plaintext=payload,
             protected_header=protected_header,
             unprotected_header=unprotected_header,
-            external_aad=external_aad
+            external_aad=aad
         ).serialize(iv=nonce, key=key)
 
-    def decrypt(self, encoded: bytes, external_aad: bytes = b''):
-        # Extract Partial IV (piv)
+    def decrypt(self, encoded: bytes):
+        # Extract Partial IV (piv) and kid (recipient_id)
         prot, unprot, cipher = loads(encoded).value
         piv = unprot[Header.PARTIAL_IV]
+        kid = unprot[Header.KID]
+
+        aad = dumps([piv, kid])
 
         # Compute Key and Nonce for message
         key = self.recipient_key()
@@ -55,7 +63,7 @@ class OscoreContext:
             encoded,
             iv=nonce,
             key=key,
-            external_aad=external_aad
+            external_aad=aad
         )
 
     def __str__(self):

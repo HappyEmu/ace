@@ -34,7 +34,7 @@ class TemperatureServer(ResourceServer):
 
     # GET /temperature
     def get_temperature(self, request, payload, token, oscore_context):
-        temperature = random.randint(8, 42)
+        temperature = random.randint(22, 26)
         response = oscore_context.encrypt(dumps({'temperature': f"{temperature}C"}))
 
         return web.Response(status=200, body=response)

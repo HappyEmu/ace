@@ -103,7 +103,7 @@ class AuthorizationServer(HttpServer):
 
         return web.Response(status=200, body=dumps(response))
 
-    def _bind_token(self, client_claims: dict, session_key: VerifyingKey) -> AccessToken:
+    def _bind_token(self, client_claims: dict, session_key: CoseKey) -> AccessToken:
         """
         Bind session_key to access_token
         :param client_claims: client claims to be included in the access token
